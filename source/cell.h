@@ -49,15 +49,15 @@ namespace roads
     // to determine the type of the cell.
     struct cell
     {
-        // {{{ For two cells c1 and c2 where c2 is further
+        // For two cells c1 and c2 where c2 is further
         // from the camera, draw the face of c2 facing the
         // camera only if:
         // c1.altitude != c2.altitude || (c2.flags & elide_flags) > (c1.flags & elide_flags)
         // ie. the further away one
         // a) doesn't have equal altitude to
         // b) has features not hidden by
-        // the closer one. }}}
-        /* {{{ */enum cellflags_t
+        // the closer one.
+        enum cellflags_t
         {
             none = 0x00,
             tile = 0x01,
@@ -73,7 +73,7 @@ namespace roads
             runtime_drawn = 0x20,
 
             elide_flags = 0x01 | 0x02 | 0x04 | 0x08
-        }; /* }}} */
+        }; 
 /*
         static inline v16 fv16(float f)
         {
@@ -165,23 +165,23 @@ namespace roads
         }
         */
 
-        /* {{{ */ enum // color values
+        enum // color values
         {
-			death_color = make_rgb<31, 0, 0>::value,
+            death_color = make_rgb<31, 0, 0>::value,
             life_color = make_rgb<0, 0, 31>::value,
             slow_color = make_rgb<0, 15, 0>::value,
             fast_color = make_rgb<0, 31, 0>::value,
             ice_color = make_rgb<6, 6, 6>::value
-        }; /* }}} */
-        /* {{{ */ enum // color indices
+        }; 
+        enum // color indices
         {
             death = 0,
             life = 1,
             slow = 2,
             fast = 3,
             ice = 4,
-        }; /* }}} */
-        /* {{{ */ union // cell data
+        }; 
+        union // cell data
         {
             struct
             {
@@ -190,30 +190,30 @@ namespace roads
                 cellflags_t flags;
             };
             uint32_t cell_value;
-        }; /* }}} */
-        
+        }; 
+
         // Draw faces facing to the camera only when required:
         // if(far.face_required(near))
         //     draw_z(far);
-        /* {{{ */ bool face_required(cell near) const
+        bool face_required(cell near) const
         {
             return
                 (near.altitude != altitude) ||
                 ((flags & elide_flags) > (near.flags & elide_flags));
-        } /* }}} */
+        } 
 
         static rgb palette[256];
     };
 
-    // {{{ cell relational ops
+    // cell relational ops
     inline bool operator<(cell lhs, cell rhs) { return lhs.cell_value < rhs.cell_value; }
     inline bool operator>(cell lhs, cell rhs) { return lhs.cell_value > rhs.cell_value; }
     inline bool operator<=(cell lhs, cell rhs) { return lhs.cell_value <= rhs.cell_value; }
     inline bool operator>=(cell lhs, cell rhs) { return lhs.cell_value >= rhs.cell_value; }
     inline bool operator==(cell lhs, cell rhs) { return lhs.cell_value == rhs.cell_value; }
     inline bool operator!=(cell lhs, cell rhs) { return lhs.cell_value != rhs.cell_value; }
-    // }}}
-    
+    //
+
     inline rgb block_color(cell c) { return cell::palette[c.block_color]; }
     inline rgb tile_color(cell c) { return cell::palette[c.tile_color]; }
 
@@ -223,7 +223,7 @@ namespace roads
         template <> struct ensure_cell_size<true> { typedef int type; };
         typedef ensure_cell_size<sizeof(cell) == sizeof(uint32_t)>::type ensure_cell_size_type;
     }
-    // {{{ cell flags bitwise ops
+    // cell flags bitwise ops
     typedef cell::cellflags_t cellflags_t;
 
     inline cellflags_t operator|(cellflags_t lhs, cellflags_t rhs) { return cellflags_t(unsigned(lhs) | unsigned(rhs)); }
@@ -232,7 +232,7 @@ namespace roads
     inline cellflags_t& operator|=(cellflags_t& lhs, cellflags_t rhs) { return lhs = lhs | rhs; }
     inline cellflags_t& operator&=(cellflags_t& lhs, cellflags_t rhs) { return lhs = lhs & rhs; }
     inline cellflags_t& operator^=(cellflags_t& lhs, cellflags_t rhs) { return lhs = lhs ^ rhs; }
-    // }}}
+    //
 
 
 }

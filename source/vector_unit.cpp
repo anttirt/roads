@@ -16,7 +16,7 @@ namespace roads
         os << (float(f.raw_value) / (1 << N));
         return os;
     }
-    std::ostream& operator<<(std::ostream& os, vector3 v)
+    std::ostream& operator<<(std::ostream& os, vector3f16 v)
     {
         os << "[" << v.x << ", " << v.y << ", " << v.z << "]";
         return os;
@@ -40,7 +40,7 @@ namespace roads
     }
 
     template <>
-    void create_tests<vector3>(unit_test_suite& suite)
+    void create_tests<vector3f16>(unit_test_suite& suite)
     {
         suite.add_test(make_auto(new vector_sum));
         suite.add_test(make_auto(new vector_mul));

@@ -46,9 +46,9 @@ namespace roads
             disp_gen gen;
             gen.diffuse_ambient(RGB15(24, 24, 24), RGB15(3, 3, 3), true);
             gen.specular_emission(RGB15(0, 0, 0), RGB15(0, 0, 0), false);
-            vertex v0 { vector3(-1, -1, 0), vector3(0, 0, -1), texcoord_t(inttot16(0), inttot16(0)) };
-            vertex v1 { vector3( 1, -1, 0), vector3(0, 0, -1), texcoord_t(inttot16(128), inttot16(0)) };
-            vertex v2 { vector3( 0,  1, 0), vector3(0, 0, -1), texcoord_t(inttot16(0), inttot16(128)) };
+            vertex v0 { vector3f16(-1, -1, 0), vector3f16(0, 0, -1), texcoord_t(inttot16(0), inttot16(0)) };
+            vertex v1 { vector3f16( 1, -1, 0), vector3f16(0, 0, -1), texcoord_t(inttot16(128), inttot16(0)) };
+            vertex v2 { vector3f16( 0,  1, 0), vector3f16(0, 0, -1), texcoord_t(inttot16(0), inttot16(128)) };
             gen.tri(v0, v1, v2);
 
             {

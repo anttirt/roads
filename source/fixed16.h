@@ -8,23 +8,9 @@
 #include <boost/mpl/not.hpp>
 
 #include <nds/arm9/math.h>
-#include <nds.h>
 
 namespace roads
 {
-       inline void pause()
-        {
-            for(;;)
-            {
-                scanKeys();
-
-                if(keysDown() & KEY_X)
-                    return;
-
-                swiWaitForVBlank();
-            }
-        }
-
     template <unsigned Frac> struct fixed16;
     struct raw_tag_t {};
     constexpr raw_tag_t raw_tag {};
@@ -414,3 +400,6 @@ namespace roads
 }
 
 #endif // DSR_FIXED16_H
+
+#include "fixedvector.h"
+

@@ -20,7 +20,7 @@ int main(void) {
     using namespace roads;
     unit_test_suite suite;
     create_tests<f16>(suite);
-    create_tests<vector3>(suite);
+    create_tests<vector3f16>(suite);
     create_tests<display_list>(suite);
 
     suite.run_tests();
@@ -44,33 +44,21 @@ roads::display_list generate_list() {
 
     disp_gen gen;
 
-    //gen.diffuse_ambient(RGB15(31, 31, 31), RGB15(0, 0, 0), false);
-    //gen.specular_emission(RGB15(0, 0, 0), RGB15(0, 0, 0), false);
-    //gen.quad(RGB15(31, 31, 31), vector3(0, 0, -1), vector3(0, -1, 0), vector3(0, 0, 0), vector3(1, 0, 0), vector3(1, -1, 0));
-    //gen.quad(RGB15(31, 31, 31), vector3(0, 0, 0), vector3(0, 1, 0), vector3(1, 1, 0), vector3(1, 0, 0));
-
     gen.diffuse_ambient(RGB15(24, 24, 24), RGB15(3, 3, 3), true);
     gen.specular_emission(RGB15(0, 0, 0), RGB15(0, 0, 0), false);
-    vertex v0 { vector3(-1, -1, 0), vector3(0, 0, -1), texcoord_t(inttot16(0), inttot16(0)) };
-    vertex v1 { vector3( 1, -1, 0), vector3(0, 0, -1), texcoord_t(inttot16(0), inttot16(0)) };
-    vertex v2 { vector3( 0,  1, 0), vector3(0, 0, -1), texcoord_t(inttot16(0), inttot16(128)) };
+    vertex v0 { vector3f16(-1, -1, 0), vector3f16(0, 0, -1) }; //, texcoord_t(inttot16(0), inttot16(0)) };
+    vertex v1 { vector3f16( 1, -1, 0), vector3f16(0, 0, -1) }; //, texcoord_t(inttot16(0), inttot16(0)) };
+    vertex v2 { vector3f16( 0,  1, 0), vector3f16(0, 0, -1) }; //, texcoord_t(inttot16(0), inttot16(128)) };
     gen.tri(v0, v1, v2);
+    gen.diffuse_ambient(RGB15(27, 6, 6), RGB15(8, 0, 0), true);
+    vertex v3 { { -1, -1, 0 }, { 0, 0, -1 } };
+    vertex v4 { { -1, -3, 0 }, { 0, 0, -1 } };
+    vertex v5 { {  1, -3, 0 }, { 0, 0, -1 } };
+    vertex v6 { {  1, -1, 0 }, { 0, 0, -1 } };
+    gen.quad(v3, v4, v5, v6);
 
     return gen.create();
 }
-
-//uint32_t disp_lst[] = {
-//	FIFO_COMMAND_PACK(FIFO_BEGIN, FIFO_COLOR, FIFO_VERTEX16, FIFO_COLOR),
-//	GL_TRIANGLE,
-//	RGB15(31,0,0),
-//	VERTEX_PACK(inttov16(-1),inttov16(-1)), VERTEX_PACK(0,0),
-//	RGB15(0,31,0),
-//	FIFO_COMMAND_PACK(FIFO_VERTEX16, FIFO_COLOR, FIFO_VERTEX16, FIFO_END),
-//	VERTEX_PACK(inttov16(1),inttov16(-1)), VERTEX_PACK(0,0),
-//	RGB15(0,0,31),
-//	VERTEX_PACK(inttov16(0),inttov16(1)), VERTEX_PACK(0,0),
-//};
-
 
 int main() {
 	float rotateX = 0.0;

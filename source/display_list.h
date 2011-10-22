@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <stdint.h>
 #include "vector.h"
+#include "fixed16.h"
 #include "glcore.h"
 #include "container_wrapper.h"
 
@@ -77,16 +78,11 @@ namespace roads
 		std::vector<uint32_t> cmdlist;
 		mutable bool dirty;
 	};
+
 	inline uint32_t vertex_pack(f16 a, f16 b)
 	{
 		return (uint32_t(a.raw_value) & 0xFFFF) | (uint32_t(b.raw_value) << 16);
 	}
-
-	typedef uint16_t rgb;
-
-    constexpr rgb make_rgb(uint8_t r, uint8_t g, uint8_t b) {
-        return uint16_t(r) | (uint16_t(g) << 5) | (uint16_t(b) << 10);
-    }
 
 	struct disp_cmd
 	{
@@ -95,11 +91,9 @@ namespace roads
 		uint8_t param_count;
 	};
 
-    typedef vector<uint16_t, 2> texcoord_t;
     struct vertex {
-        vector3 position;
-        vector3 normal;
-        texcoord_t texcoord;
+        vector3f16 position;
+        vector3f16 normal;
     };
 
 	struct disp_gen
@@ -111,41 +105,41 @@ namespace roads
         disp_gen& specular_emission(rgb specular, rgb emission, bool enable_shininess_table);
 
         disp_gen& quad(rgb color,
-                       vector3 const& v0,
-                       vector3 const& v1,
-                       vector3 const& v2,
-                       vector3 const& v3);
+                       vector3f16 const& v0,
+                       vector3f16 const& v1,
+                       vector3f16 const& v2,
+                       vector3f16 const& v3);
 
         disp_gen& quad(rgb color,
-                       vector3 const& normal,
-                       vector3 const& v0,
-                       vector3 const& v1,
-                       vector3 const& v2,
-                       vector3 const& v3);
+                       vector3f16 const& normal,
+                       vector3f16 const& v0,
+                       vector3f16 const& v1,
+                       vector3f16 const& v2,
+                       vector3f16 const& v3);
 
         disp_gen& quad(vertex const& v0, vertex const& v1, vertex const& v2, vertex const& v3);
         disp_gen& tri(vertex const& v0, vertex const& v1, vertex const& v2);
 
         disp_gen& tri( rgb color,
-                       vector3 const& v0,
-                       vector3 const& v1,
-                       vector3 const& v2);
+                       vector3f16 const& v0,
+                       vector3f16 const& v1,
+                       vector3f16 const& v2);
 
         disp_gen& tri( rgb color0,
-                       vector3 const& v0,
+                       vector3f16 const& v0,
                        rgb color1,
-                       vector3 const& v1,
-                       vector3 const& v2);
+                       vector3f16 const& v1,
+                       vector3f16 const& v2);
 
         disp_gen& tri( rgb color0,
-                       vector3 const& v0,
+                       vector3f16 const& v0,
                        rgb color1,
-                       vector3 const& v1,
+                       vector3f16 const& v1,
                        rgb color2,
-                       vector3 const& v2);
+                       vector3f16 const& v2);
 
-		disp_gen& quad_strip(rgb color, vector3 const* const vertices, unsigned const count);
-		disp_gen& triangle_strip(rgb color, vector3 const* const vertices, unsigned const count);
+		disp_gen& quad_strip(rgb color, vector3f16 const* const vertices, unsigned const count);
+		disp_gen& triangle_strip(rgb color, vector3f16 const* const vertices, unsigned const count);
 
         disp_gen& cmd(disp_cmd const& cmd);
 		display_list create();

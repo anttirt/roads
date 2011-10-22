@@ -11,9 +11,9 @@ namespace roads
 		void push_cmd(gfx_offset_t cmd, uint32_t param0);
 		void push_cmd(gfx_offset_t cmd, uint32_t param0, uint32_t param1);
         void push_cmd(disp_cmd const& cmd);
-		void push_vertex(vector3 const& v);
+		void push_vertex(vector3f16 const& v);
 		void push_vertex(vertex const& v);
-		void push_vertices(vector3 const* const vertices, unsigned const count);
+		void push_vertices(vector3f16 const* const vertices, unsigned const count);
 
 		std::vector<disp_cmd> commands;
     };
@@ -38,18 +38,18 @@ namespace roads
         commands.push_back({{param0,param1},cmd,2});
 	}
 
-	void disp_gen::impl_::push_vertex(vector3 const& v)
+	void disp_gen::impl_::push_vertex(vector3f16 const& v)
 	{
 		push_cmd(gfx_vertex16, vertex_pack(v.x, v.y), vertex_pack(v.z, 0));
 	}
 
     void disp_gen::impl_::push_vertex(vertex const& v) {
-        push_cmd(gfx_tex_coord, TEXTURE_PACK(v.texcoord.x, v.texcoord.y));
-        push_cmd(gfx_normal, geometry::normal_pack(v.normal));
+        //push_cmd(gfx_tex_coord, TEXTURE_PACK(v.texcoord.x, v.texcoord.y));
+        push_cmd(gfx_normal, normal_pack(v.normal));
         push_vertex(v.position);
     }
 
-	void disp_gen::impl_::push_vertices(vector3 const* const vertices, unsigned const count)
+	void disp_gen::impl_::push_vertices(vector3f16 const* const vertices, unsigned const count)
 	{
 		for(unsigned i = 0; i < count; ++i)
 		{
@@ -108,7 +108,7 @@ namespace roads
 		return *this;
     }
 
-	disp_gen& disp_gen::quad(rgb color, vector3 const& v0, vector3 const& v1, vector3 const& v2, vector3 const& v3)
+	disp_gen& disp_gen::quad(rgb color, vector3f16 const& v0, vector3f16 const& v1, vector3f16 const& v2, vector3f16 const& v3)
 	{
 		impl->push_cmd(gfx_begin, gl_quads);
         impl->push_cmd(gfx_color, color);
@@ -119,11 +119,11 @@ namespace roads
 		return *this;
 	}
 
-	disp_gen& disp_gen::quad(rgb color, vector3 const& normal, vector3 const& v0, vector3 const& v1, vector3 const& v2, vector3 const& v3)
+	disp_gen& disp_gen::quad(rgb color, vector3f16 const& normal, vector3f16 const& v0, vector3f16 const& v1, vector3f16 const& v2, vector3f16 const& v3)
 	{
 		impl->push_cmd(gfx_begin, gl_quads);
         impl->push_cmd(gfx_color, color);
-        impl->push_cmd(gfx_normal, geometry::normal_pack(normal));
+        impl->push_cmd(gfx_normal, normal_pack(normal));
 		impl->push_vertex(v0);
 		impl->push_vertex(v1);
 		impl->push_vertex(v2);
@@ -131,7 +131,7 @@ namespace roads
 		return *this;
 	}
 
-	disp_gen& disp_gen::tri(rgb color, vector3 const& v0, vector3 const& v1, vector3 const& v2)
+	disp_gen& disp_gen::tri(rgb color, vector3f16 const& v0, vector3f16 const& v1, vector3f16 const& v2)
 	{
 		impl->push_cmd(gfx_begin, gl_triangles);
         impl->push_cmd(gfx_color, color);
@@ -140,7 +140,7 @@ namespace roads
 		impl->push_vertex(v2);
 		return *this;
 	}
-	disp_gen& disp_gen::tri(rgb color0, vector3 const& v0, rgb color1, vector3 const& v1, vector3 const& v2)
+	disp_gen& disp_gen::tri(rgb color0, vector3f16 const& v0, rgb color1, vector3f16 const& v1, vector3f16 const& v2)
 	{
 		impl->push_cmd(gfx_begin, gl_triangles);
         impl->push_cmd(gfx_color, color0);
@@ -150,7 +150,7 @@ namespace roads
 		impl->push_vertex(v2);
 		return *this;
 	}
-	disp_gen& disp_gen::tri(rgb color0, vector3 const& v0, rgb color1, vector3 const& v1, rgb color2, vector3 const& v2)
+	disp_gen& disp_gen::tri(rgb color0, vector3f16 const& v0, rgb color1, vector3f16 const& v1, rgb color2, vector3f16 const& v2)
 	{
 		impl->push_cmd(gfx_begin, gl_triangles);
         impl->push_cmd(gfx_color, color0);
@@ -162,7 +162,7 @@ namespace roads
 		return *this;
 	}
 
-	disp_gen& disp_gen::quad_strip(rgb color, vector3 const* const vertices, unsigned const count)
+	disp_gen& disp_gen::quad_strip(rgb color, vector3f16 const* const vertices, unsigned const count)
 	{
 		impl->push_cmd(gfx_begin, gl_quad_strip);
         impl->push_cmd(gfx_color, color);
@@ -170,7 +170,7 @@ namespace roads
 		return *this;
 	}
 
-	disp_gen& disp_gen::triangle_strip(rgb color, vector3 const* const vertices, unsigned const count)
+	disp_gen& disp_gen::triangle_strip(rgb color, vector3f16 const* const vertices, unsigned const count)
 	{
 		impl->push_cmd(gfx_begin, gl_triangle_strip);
         impl->push_cmd(gfx_color, color);

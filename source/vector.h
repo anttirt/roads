@@ -1,10 +1,6 @@
 #ifndef DSR_VECTOR_H_INCLUDED
 #define DSR_VECTOR_H_INCLUDED
 
-#include "fixed16.h"
-
-// extern "C" int swiDivide(int numerator, int divisor);
-
 namespace roads
 {
     template <typename T, int Stage>
@@ -34,7 +30,7 @@ namespace roads
         constexpr vector() : x(), y() {}
         constexpr vector(Elem x, Elem y)
             : x(x), y(y) {}
-        //constexpr vector(vector const& r) : x(r.x), y(r.y) {}
+
         constexpr Elem get(int i) { return i == 0 ? x : y; }
 
         template <typename E2>
@@ -67,7 +63,7 @@ namespace roads
         constexpr vector() : x(), y(), z() {}
         constexpr vector(Elem x, Elem y, Elem z)
             : x(x), y(y), z(z) {}
-        //constexpr vector(vector const& r) : x(r.x), y(r.y), z(r.z) {}
+
         constexpr Elem get(int i) { return i == 0 ? x : i == 1 ? y : z; }
 
         template <typename E2>
@@ -140,21 +136,9 @@ namespace roads
         return !(a == b);
     }
 
-	typedef vector<f16, 2> vector2;
-	typedef vector<f16, 3> vector3;
-
-	inline constexpr vector2 vec(f16 x, f16 y)
-	{
-        return vector2 { x, y };
-	}
-	inline constexpr vector3 vec(f16 x, f16 y, f16 z)
-	{
-		return vector3 { x, y, z };
-	}
-    inline constexpr vector3 vec(vector2 xy, f16 z)
-    {
-        return vector3 { xy.x, xy.y, z };
-    }
 }
 
 #endif // DSR_VECTOR_H_INCLUDED
+
+#include "fixedvector.h"
+
