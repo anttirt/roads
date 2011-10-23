@@ -6,9 +6,11 @@
 #include "fixed16.h"
 #include "vector.h"
 #include "display_list.h"
+#include "disp_writer.h"
 
 #include <nds.h>
 #include <stdio.h>
+#include <nds/arm9/videoGL.h>
 
 //---------------------------------------------------------------------------------
 int main(void) {
@@ -21,7 +23,8 @@ int main(void) {
     unit_test_suite suite;
     create_tests<f16>(suite);
     create_tests<vector3f16>(suite);
-    create_tests<display_list>(suite);
+    //create_tests<display_list>(suite);
+    create_tests<disp_writer>(suite);
 
     suite.run_tests();
 
@@ -34,39 +37,107 @@ int main(void) {
 
 #else // RUN_UNIT_TESTS
 
+#include <boost/array.hpp>
+#include <vector>
+#include <stdexcept>
 #include <nds.h>
 
 #include "display_list.h"
+#include "disp_writer.h"
 #include "utility.h"
+#include "cell.h"
+#include "vector.h"
+#include "fixed16.h"
+#include "geometry.h"
+
+typedef boost::array<roads::cell, 7> row;
+typedef std::vector<row> level_data;
+
+level_data make_level_data() {
+    using namespace roads;
+    row r0 {
+        cell { cell::life, cell::life, 1, cell::tile },
+        cell { cell::life, cell::life, 1, cell::tile },
+        cell { cell::fast, cell::life, 1, cell::tile },
+        cell { cell::life, cell::life, 1, cell::tile },
+        cell { cell::fast, cell::life, 1, cell::tile },
+        cell { cell::life, cell::life, 1, cell::tile },
+        cell { cell::life, cell::life, 1, cell::tile },
+    };
+
+    row r1 {
+        cell { cell::life, cell::life, 1, cell::tile },
+        cell { cell::fast, cell::life, 1, cell::tile },
+        cell { cell::life, cell::life, 1, cell::tile },
+        cell { cell::life, cell::life, 1, cell::tile },
+        cell { cell::life, cell::life, 1, cell::tile },
+        cell { cell::fast, cell::life, 1, cell::tile },
+        cell { cell::life, cell::life, 1, cell::tile },
+    };
+
+    level_data data;
+    for(size_t i = 0; i < 5; ++i) {
+        for(size_t j = 0; j < 5; ++j) { data.push_back(r0); }
+        data.push_back(r1);
+        data.push_back(r0);
+        for(size_t j = 0; j < 5; ++j) { data.push_back(r1); }
+        data.push_back(r0);
+        data.push_back(r1);
+    }
+    return std::move(data);
+}
+
+namespace roads {
+
+}
 
 roads::display_list generate_list() {
     using namespace roads;
 
-    disp_gen gen;
+    display_list lst;
+    lst.resize(4096);
 
-    gen.diffuse_ambient(RGB15(24, 24, 24), RGB15(3, 3, 3), true);
-    gen.specular_emission(RGB15(0, 0, 0), RGB15(0, 0, 0), false);
-    vertex v0 { vector3f16(-1, -1, 0), vector3f16(0, 0, -1) }; //, texcoord_t(inttot16(0), inttot16(0)) };
-    vertex v1 { vector3f16( 1, -1, 0), vector3f16(0, 0, -1) }; //, texcoord_t(inttot16(0), inttot16(0)) };
-    vertex v2 { vector3f16( 0,  1, 0), vector3f16(0, 0, -1) }; //, texcoord_t(inttot16(0), inttot16(128)) };
-    gen.tri(v0, v1, v2);
-    gen.diffuse_ambient(RGB15(27, 6, 6), RGB15(8, 0, 0), true);
-    vertex v3 { { -1, -1, 0 }, { 0, 0, -1 } };
-    vertex v4 { { -1, -3, 0 }, { 0, 0, -1 } };
-    vertex v5 { {  1, -3, 0 }, { 0, 0, -1 } };
-    vertex v6 { {  1, -1, 0 }, { 0, 0, -1 } };
-    gen.quad(v3, v4, v5, v6);
+    disp_writer writer(lst, { 0, 0, -1 }, { 12, 12, 12 });
 
-    return gen.create();
+    cell c0 { cell::life, cell::death, 0, cell::tile | cell::high };
+    cell c1 { cell::life, cell::death, 0, cell::tile | cell::low };
+    cell c2 { cell::life, cell::death, 0, cell::tile };
+    cell c3 { cell::ice, cell::death, 0, cell::tile };
+    cell c4 { cell::fast, cell::fast, 0, cell::high };
+    cell c5 { cell::fast, cell::fast, 0, cell::tunnel };
+    cell c6 { cell::fast, cell::fast, 0, cell::tunnel | cell::high };
+    cell c7 { cell::fast, cell::fast, 0, cell::tunnel | cell::low | cell::tile };
+
+    writer
+        << draw_cell { c0, { 0, 0, 0, }, { 1, 1, 5 } }
+        << draw_cell { c1, { geometry::draw::block_size, 0, 0, }, { 1, 1, 5 } }
+        << draw_cell { c2, { geometry::draw::block_size*2, 0, 0, }, { 1, 1, 5 } }
+        << draw_cell { c3, { geometry::draw::block_size*3, 0, 0, }, { 1, 1, 5 } }
+        << draw_cell { c4, { geometry::draw::block_size*-1, 0, 0, }, { 1, 1, 5 } }
+        << draw_cell { c5, { geometry::draw::block_size*-2, 0, 0, }, { 1, 1, 5 } }
+        << draw_cell { c6, { geometry::draw::block_size*-3, 0, 0, }, { 1, 1, 5 } }
+        << draw_cell { c7, { geometry::draw::block_size*-4, 0, 0, }, { 1, 1, 5 } }
+        << end;
+
+    lst.resize(writer.write_count());
+
+    iprintf("wrote 1 cell\ncount: %d\n", writer.write_count());
+    iprintf("writer is %sokay", writer ? "" : "NOT ");
+
+    return std::move(lst);
 }
 
 int main() {
 	float rotateX = 0.0;
 	float rotateY = 0.0;
 
+    lcdMainOnTop();
 	//set mode 0, enable BG0 and set it to 3D
 	videoSetMode(MODE_0_3D);
 
+    videoSetModeSub(MODE_0_2D);
+    vramSetBankI(VRAM_I_SUB_BG_0x06208000);
+    consoleInit(NULL, 0, BgType_Text4bpp, BgSize_T_256x256, 23, 2, false, true);
 	// initialize gl
 	glInit();
 	
@@ -90,26 +161,16 @@ int main() {
 				0.0, 0.0, 0.0,		//look at
 				0.0, 1.0, 0.0);		//up
 	
-	// setup the lighting
-	//glLight(0, RGB15(31,31,31) , 0, floattov10(-.5), floattov10(-.85));
+    using roads::vector3d;
+    constexpr vector3d ln = vector3d(1, -1, -1).normalized();
 
-	glLight(0, RGB15(31,31,31) , 0,				  floattov10(-1.0),		 0);
-	glLight(1, RGB15(31,0,31),   0,				  floattov10(1) - 1,			 0);
-	glLight(2, RGB15(0,31,0) ,   floattov10(-1.0), 0,					 0);
-	glLight(3, RGB15(0,0,31) ,   floattov10(1.0) - 1,  0,					 0);
-	
-	//not a real gl function and will likely change
-	glPolyFmt(POLY_ALPHA(31) | POLY_CULL_BACK | POLY_FORMAT_LIGHT0 | POLY_FORMAT_LIGHT1 | 
-			  POLY_FORMAT_LIGHT2 | POLY_FORMAT_LIGHT3 ) ;
-	//glPolyFmt(POLY_ALPHA(31) | POLY_CULL_BACK | POLY_FORMAT_LIGHT0);
+	glLight(0, roads::make_rgb(0.1,0.1,0.1),
+            floattov10(ln.x), floattov10(ln.y), floattov10(ln.z));
+	glPolyFmt(POLY_ALPHA(31) | POLY_CULL_BACK | POLY_FORMAT_LIGHT0);
 
     roads::display_list list = generate_list();
-    //roads::display_list list;
-
-    //for(size_t i = 0; i < countof(disp_lst); ++i)
-    //    list.push_back(disp_lst[i]);
 	
-	while(1)		
+	while(1)
 	{
 		glPushMatrix();
 				
@@ -124,7 +185,6 @@ int main() {
 		if(!(keys & KEY_RIGHT)) rotateY -= 3;
 		
         list.draw();
-		//glCallList((u32*)teapot_bin);	
 
 		glPopMatrix(1);
 			

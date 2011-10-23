@@ -8,6 +8,7 @@
 #include <boost/mpl/not.hpp>
 
 #include <nds/arm9/math.h>
+#include <type_traits>
 
 namespace roads
 {
@@ -146,6 +147,7 @@ namespace roads
     operator*(Left left, fixed16<Frac> right) {
         return fixed16<Frac>(left * right.raw_value, raw_tag);
     }
+    // TODO: are these actually needed? shouldn't the above always work?
     // fix * float
     template <unsigned Frac, typename Right>
     constexpr
@@ -170,7 +172,7 @@ namespace roads
     {
         int16_t raw_value;
 
-        constexpr fixed16() : raw_value() {}
+        constexpr fixed16() = default;
 
         //constexpr fixed16(fixed16 const& rhs) : raw_value(rhs.raw_value) {}
 
@@ -269,6 +271,9 @@ namespace roads
         }
     };
 
+    template <unsigned Frac>
+    constexpr int16_t raw(fixed16<Frac> f) { return f.raw_value; }
+
     template <unsigned Lhs, unsigned Rhs>
     constexpr bool operator==(fixed16<Lhs> lhs, fixed16<Rhs> rhs)
     {
@@ -330,7 +335,11 @@ namespace roads
         return fixed16<Lhs>(lhs.raw_value >> rhs, raw_tag);
     }
 
+    // the most common 16-bit format on the NDS, 4.12
     typedef fixed16<12> f16;
+
+    static_assert(std::is_trivial<f16>::value, "fixed16 type is not trivial");
+    static_assert(std::is_standard_layout<f16>::value, "fixed16 type is not standard-layout");
 
     template <unsigned N>
     constexpr fixed16<N> clamp(fixed16<N> val, fixed16<N> min, fixed16<N> max)
@@ -361,7 +370,7 @@ namespace roads
     template <unsigned Frac>
     struct fixed32 {
         int32_t raw_value;
-        constexpr fixed32() : raw_value(0) {}
+        constexpr fixed32() = default;
         constexpr fixed32(int32_t int_value) : raw_value(int_value << Frac) {}
         constexpr fixed32(int32_t raw_value, raw_tag_t) : raw_value(raw_value) {}
         constexpr fixed32(float f_value) : raw_value(double(f_value) * (1 << Frac)) {}
@@ -381,7 +390,28 @@ namespace roads
             raw_value = ((*this) + rhs).raw_value;
             return *this;
         }
+
+        constexpr float to_float() {
+            return float(raw_value) / (1 << Frac);
+        }
+
+        constexpr double to_double() {
+            return double(raw_value) / (1 << Frac);
+        }
+        
+        constexpr int32_t to_int() {
+            return raw_value >> Frac;
+        }
     };
+
+    template <unsigned Frac>
+    constexpr int32_t raw(fixed32<Frac> f) { return f.raw_value; }
+
+	inline constexpr uint32_t vertex_pack(f16 a, f16 b)
+	{
+		return (uint32_t(raw(a)) & 0xFFFF) | (uint32_t(raw(b)) << 16);
+	}
+
 
     template <unsigned Frac>
     constexpr fixed32<Frac> operator+(fixed32<Frac> lhs, fixed32<Frac> rhs) {
@@ -397,9 +427,49 @@ namespace roads
     constexpr fixed32<Frac> operator*(fixed32<Frac> lhs, fixed32<Frac> rhs) {
         return fixed32<Frac>((int64_t(lhs.raw_value) * rhs.raw_value) >> Frac, raw_tag);
     }
+
+    // note: this works for both floats and integral types
+    template <unsigned Frac, typename T>
+    constexpr fixed32<Frac> operator*(fixed32<Frac> lhs, T rhs) {
+        return fixed32<Frac>(lhs.raw_value * rhs, raw_tag);
+    }
+
+    template <unsigned Frac>
+    fixed32<Frac> operator/(fixed32<Frac> lhs, fixed32<Frac> rhs) {
+        int64_t const tmp0 = int64_t(lhs.raw_value) << Frac;
+        int32_t const tmp1 = rhs.raw_value;
+        return fixed32<Frac>(div64(tmp0, tmp1), raw_tag);
+    }
+
+    template <unsigned Frac>
+    constexpr fixed32<Frac> floor(fixed32<Frac> val) {
+        return fixed32<Frac>(
+            (
+                (val.raw_value >> Frac) // discard fractional bits, make an integer
+                - (val.raw_value < 0 ? 1 : 0) // if < 0 then subtract 1
+                ) << Frac, // go back to fixed-point
+            raw_tag);
+    }
+
+    template <unsigned Frac>
+    constexpr fixed32<Frac> ceil(fixed32<Frac> val) {
+        return fixed32<Frac>(
+            (
+                (val.raw_value >> Frac) // discard fractional bits, make an integer
+                + (val.raw_value > 0 ? 1 : 0) // if > 0 then add 1
+                ) << Frac, // go back to fixed-point
+            raw_tag);
+    }
+
+    // the most common 32-bit format on the NDS, 20.12
+    typedef fixed32<12> f32;
+
+    static_assert(std::is_trivial<f32>::value, "fixed32 type is not trivial");
+    static_assert(std::is_standard_layout<f32>::value, "fixed32 type is not standard-layout");
 }
 
 #endif // DSR_FIXED16_H
 
 #include "fixedvector.h"
+#include "cellvector.h"
 

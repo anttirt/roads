@@ -1,6 +1,7 @@
 #ifndef DSR_GLCORE_H
 #define DSR_GLCORE_H
 
+#include "utility.h"
 #include "address_transform.h"
 
 namespace roads
@@ -14,8 +15,22 @@ namespace roads
         gfx_fifo              = 0x400,
         gfx_nop               = 0x400,
         gfx_status            = 0x600,
-        gfx_color             = 0x480,
 
+        gfx_matrix_mode       = 0x440,
+        gfx_matrix_push       = 0x444,
+        gfx_matrix_pop        = 0x448,
+        gfx_matrix_store      = 0x44c,
+        gfx_matrix_restore    = 0x450,
+        gfx_matrix_identity   = 0x454,
+        gfx_matrix_load_4x4   = 0x458,
+        gfx_matrix_load_4x3   = 0x45c,
+        gfx_matrix_mult_4x4   = 0x460,
+        gfx_matrix_mult_4x3   = 0x464,
+        gfx_matrix_mult_3x3   = 0x468,
+        gfx_matrix_scale      = 0x46c,
+        gfx_matrix_trans      = 0x470,
+
+        gfx_color             = 0x480,
         gfx_vertex10          = 0x490,
         gfx_vertex_xy         = 0x494,
         gfx_vertex_xz         = 0x498,
@@ -100,12 +115,12 @@ namespace roads
         return detail::reg_type<Offset>::apply(ptr);
     }
 
-    inline uint8_t id(gfx_offset_t offset)
+    inline constexpr uint8_t id(gfx_offset_t offset)
     {
         return static_cast<uint8_t>((offset - 0x400) >> 2);
     }
 
-    inline uint32_t fifo_pack(gfx_offset_t c1, gfx_offset_t c2, gfx_offset_t c3, gfx_offset_t c4)
+    inline constexpr uint32_t fifo_pack(gfx_offset_t c1, gfx_offset_t c2, gfx_offset_t c3, gfx_offset_t c4)
     {
         return
             (id(c4) << 24) | 
@@ -113,6 +128,11 @@ namespace roads
             (id(c2) << 8) | 
             (id(c1));
     }
+
+    inline constexpr uint32_t pack_material(rgb dif, rgb amb, bool flag) {
+        return dif | (amb << 16) | ((flag ? 0 : 1) << 15);
+    }
+
 }
 
 #endif // DSR_GLCORE_H

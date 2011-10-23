@@ -49,7 +49,7 @@ uint32_t const disp_lst[] = {
     VERTEX_PACK(inttov16(1),inttov16(1)), VERTEX_PACK(0,0),
 
     FIFO_COMMAND_PACK(FIFO_MATRIX_POP, FIFO_NOP, FIFO_NOP, FIFO_NOP),
-    0, 0, 0
+    1, 0, 0, 0
 };
 
 }

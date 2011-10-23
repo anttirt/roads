@@ -8,6 +8,8 @@
 namespace roads {
 	typedef vector<f16, 2> vector2f16;
 	typedef vector<f16, 3> vector3f16;
+	typedef vector<f32, 2> vector2f32;
+	typedef vector<f32, 3> vector3f32;
 
 	inline constexpr vector2f16 vec(f16 x, f16 y)
 	{
@@ -30,6 +32,12 @@ namespace roads {
              | ((uint16_t(clamp(v.y.raw_value, -4096, 4095) >> 3) & 0x3FF) << 10)
              | ((uint16_t(clamp(v.z.raw_value, -4096, 4095) >> 3) & 0x3FF) << 20);
     }
+
+    struct vertex {
+        vector3f16 position;
+        vector3f16 normal;
+    };
+
 }
 
 #endif // ROADS_FIXEDVECTOR_H

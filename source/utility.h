@@ -1,6 +1,9 @@
 #ifndef ROADS_UTILITY_H
 #define ROADS_UTILITY_H
 
+#include <type_traits>
+#include <cstddef>
+
 namespace roads {
     template <typename T, size_t N>
     char(&(countof_helper)(T(&)[N]))[N];
@@ -8,8 +11,14 @@ namespace roads {
 
 	typedef uint16_t rgb;
 
-    constexpr rgb make_rgb(uint8_t r, uint8_t g, uint8_t b) {
+    template <typename T>
+    constexpr typename std::enable_if<std::is_integral<T>::value, rgb>::type make_rgb(T r, T g, T b) {
         return uint16_t(r) | (uint16_t(g) << 5) | (uint16_t(b) << 10);
+    }
+
+    template <typename T>
+    constexpr typename std::enable_if<std::is_floating_point<T>::value, rgb>::type make_rgb(T r, T g, T b) {
+        return uint16_t(r * 31) | (uint16_t(g * 31) << 5) | (uint16_t(b * 31) << 10);
     }
 
     constexpr int16_t float_to_v10(float f) {

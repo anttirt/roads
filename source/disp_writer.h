@@ -3,9 +3,11 @@
 
 #include <cstdint>
 #include <cassert>
+#include <initializer_list>
 #include "glcore.h"
 #include "fixed16.h"
 #include "vector.h"
+#include "display_list.h"
 
 namespace roads {
     /*
@@ -230,6 +232,14 @@ namespace roads {
         }
 
     public:
+        disp_writer(display_list& lst, vector3f32 const& translation, vector3f32 const& scale)
+            : pipe(), buffer_start(lst.data()), buffer_pos(lst.data()), buffer_end(lst.data() + lst.size()),
+              pipe_index(0), buffer_full(false)
+        {
+            assert(buffer_end - buffer_start >= min_buffer_length);
+            push_prelude(translation, scale);
+        }
+
         disp_writer(iterator buffer_start, iterator buffer_end, vector3f32 const& translation, vector3f32 const& scale)
             : pipe(), buffer_start(buffer_start), buffer_pos(buffer_start), buffer_end(buffer_end),
               pipe_index(0), buffer_full(false)
@@ -256,9 +266,17 @@ namespace roads {
     struct nquad {
         vertex a, b, c, d;
     };
+    struct fvertex {
+        vector3f16 position;
+        uint32_t normal;
+    };
+    struct fnquad {
+        fvertex a, b, c, d;
+    };
     struct normal {
-        constexpr normal(vector3f16 const& data) : data(data) {}
-        vector3f16 data;
+        constexpr normal(vector3f16 const& data) : packed(normal_pack(data)) {}
+        constexpr normal(uint32_t packed) : packed(packed) {}
+        uint32_t packed;
     };
     struct diffuse_ambient {
         int16_t diffuse, ambient;
@@ -269,8 +287,59 @@ namespace roads {
         bool enable_shininess_table;
     };
 
+    struct arc_piece {
+        uint32_t normal;
+        vector3f16 vertex0, vertex1;
+    };
+
+    struct arc {
+        arc_piece const* piece, * end;
+
+        arc(std::initializer_list<arc_piece> pieces)
+            : piece(&*pieces.begin()), end(piece + pieces.size())
+        {}
+    };
+
+    struct quad_strip {
+        vector3f16 const* data_start, * data_end;
+        quad_strip(std::initializer_list<vector3f16> verts)
+            : data_start(&*verts.begin()), data_end(data_start + verts.size()) {
+        }
+    };
+
+    inline disp_writer& operator<<(disp_writer& writer, normal const& n) {
+        return writer.push(gfx_normal, n.packed);
+    }
+
     inline disp_writer& operator<<(disp_writer& writer, vector3f16 vertex) {
         return writer.push(gfx_vertex16, vertex_pack(vertex.x, vertex.y), vertex_pack(vertex.z, 0));
+    }
+
+    inline disp_writer& operator<<(disp_writer& writer, arc a) {
+        auto saved = writer.save();
+
+        writer.push(gfx_begin, gl_quad_strip);
+
+        for(; a.piece != a.end; ++a.piece) {
+            writer
+                << normal { a.piece->normal }
+                << a.piece->vertex0
+                << a.piece->vertex1;
+        }
+
+        if(!writer)
+            writer.reset(saved);
+        return writer;
+    }
+
+    inline disp_writer& operator<<(disp_writer& writer, quad_strip qs) {
+        auto saved = writer.save();
+        writer.push(gfx_begin, gl_quad_strip);
+        for(; qs.data_start != qs.data_end; ++qs.data_start)
+            writer << *qs.data_start;
+        if(!writer)
+            writer.reset(saved);
+        return writer;
     }
 
     inline disp_writer& operator<<(disp_writer& writer, vertex const& v) {
@@ -284,10 +353,6 @@ namespace roads {
     inline disp_writer& raw_vertex(disp_writer& writer, vertex const& v) {
         // caller takes care of state
         return writer.push(gfx_normal, normal_pack(v.normal)) << v.position;
-    }
-
-    inline disp_writer& operator<<(disp_writer& writer, normal const& n) {
-        return writer.push(gfx_normal, normal_pack(n.data));
     }
 
     inline disp_writer& operator<<(disp_writer& writer, diffuse_ambient diff_amb) {

@@ -27,7 +27,7 @@ namespace roads
     template <typename Elem, unsigned N> struct vector;
     template <typename Elem> struct vector<Elem, 2> {
         Elem x, y;
-        constexpr vector() : x(), y() {}
+        constexpr vector() = default;
         constexpr vector(Elem x, Elem y)
             : x(x), y(y) {}
 
@@ -46,6 +46,13 @@ namespace roads
             return csqrt(x * x + y * y);
         }
 
+        Elem& operator[](size_t ix) {
+            return ix == 0 ? x : y;
+        }
+        constexpr Elem operator[](size_t ix) const {
+            return ix == 0 ? x : y;
+        }
+
         constexpr vector normalized() {
             return vector(x / length(), y / length());
         }
@@ -58,9 +65,13 @@ namespace roads
         template <typename Other>
         vector& operator*=(Other b) { x *= b; y *= b; return *this; }
     };
+
+    static_assert(std::is_trivial<vector<int, 2>>::value, "vector2 type is not trivial");
+    static_assert(std::is_standard_layout<vector<int, 2>>::value, "vector2 type is not standard-layout");
+
     template <typename Elem> struct vector<Elem, 3> {
         Elem x, y, z;
-        constexpr vector() : x(), y(), z() {}
+        constexpr vector() = default;
         constexpr vector(Elem x, Elem y, Elem z)
             : x(x), y(y), z(z) {}
 
@@ -79,6 +90,12 @@ namespace roads
             return csqrt(x * x + y * y + z * z);
         }
 
+        Elem& operator[](size_t ix) {
+            return ix == 0 ? x : ix == 1 ? y : z;
+        }
+        constexpr Elem operator[](size_t ix) const {
+            return ix == 0 ? x : ix == 1 ? y : z;
+        }
         constexpr vector normalized() {
             return vector(x / length(), y / length(), z / length());
         }
@@ -92,6 +109,9 @@ namespace roads
         template <typename Other>
         vector& operator*=(Other b) { x *= b; y *= b; z *= b; return *this; }
     };
+
+    static_assert(std::is_trivial<vector<int, 3>>::value, "vector2 type is not trivial");
+    static_assert(std::is_standard_layout<vector<int, 3>>::value, "vector2 type is not standard-layout");
 
     template <typename Elem> inline constexpr vector<Elem, 2> operator+(vector<Elem, 2> a, vector<Elem, 2> b) {
         return vector<Elem, 2>(a.x + b.x, a.y + b.y);
@@ -136,9 +156,12 @@ namespace roads
         return !(a == b);
     }
 
+    typedef vector<double, 2> vector2d;
+    typedef vector<double, 3> vector3d;
 }
 
 #endif // DSR_VECTOR_H_INCLUDED
 
 #include "fixedvector.h"
+#include "cellvector.h"
 

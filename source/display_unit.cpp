@@ -1,6 +1,7 @@
 #include "unit_config.h"
 
-#if RUN_UNIT_TESTS == 1
+#if 0
+//#if RUN_UNIT_TESTS == 1
 
 #include "unit_test.h"
 #include "display_list.h"

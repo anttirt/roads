@@ -32,7 +32,7 @@ GRAPHICS	:=	gfx
 #---------------------------------------------------------------------------------
 ARCH		:=	-mthumb -mthumb-interwork
 
-CFLAGS	:=	-g -Wall -Wno-missing-braces -O2\
+CFLAGS	:=	-g -Wall -Wuninitialized -Wno-missing-braces -Wfatal-errors -O3\
  			-march=armv5te -mtune=arm946e-s -fomit-frame-pointer\
 			-ffast-math \
 			$(ARCH)
@@ -102,7 +102,7 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
  
 export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 
-.PHONY: $(BUILD) clean
+.PHONY: $(BUILD) clean test
  
 #---------------------------------------------------------------------------------
 $(BUILD):
@@ -114,6 +114,10 @@ clean:
 	@echo clean ...
 	@rm -fr $(BUILD) $(TARGET).elf $(TARGET).nds $(TARGET).arm9 $(TARGET).ds.gba 
  
+test:
+	@[ -d $(BUILD) ] || mkdir -p $(BUILD)
+	@make BUILDDIR=`cd $(BUILD) && pwd` UNITTESTDEF='-DRUN_UNIT_TESTS=1' --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
+
  
 #---------------------------------------------------------------------------------
 else

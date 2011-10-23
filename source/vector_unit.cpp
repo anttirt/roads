@@ -4,6 +4,7 @@
 
 #include "unit_test.h"
 #include "vector.h"
+#include "fixed16.h"
 
 #include <boost/lexical_cast.hpp>
 #include <nds.h>

@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <stdint.h>
 #include "vector.h"
+#include "cell.h"
 #include "fixed16.h"
 #include "glcore.h"
 #include "container_wrapper.h"
@@ -38,6 +39,19 @@ namespace roads
             return *this;
         }
 
+        uint32_t* data() {
+            return &cmdlist[0];
+        }
+
+        void resize(size_t count) {
+            cmdlist.resize(count);
+            dirty = true;
+        }
+
+        size_t size() const {
+            return cmdlist.size();
+        }
+
 		void draw() const;
 		void swap(display_list& rhs)
 		{
@@ -59,13 +73,8 @@ namespace roads
         }
 
 	private:
-		display_list(display_list const& rhs);
-		display_list& operator=(display_list const& rhs);
-		//display_list(display_list const& rhs)
-        //    : cmdlist(rhs.cmdlist), dirty(true) {}
-		//display_list& operator=(display_list const& rhs)
-        //{ cmdlist = rhs.cmdlist; dirty = true; return *this; }
-		friend class disp_gen;
+		display_list(display_list const& rhs) = delete;
+		display_list& operator=(display_list const& rhs) = delete;
 
     public:
 		void push_back(uint32_t packed_cmd)
@@ -78,88 +87,6 @@ namespace roads
 		std::vector<uint32_t> cmdlist;
 		mutable bool dirty;
 	};
-
-	inline uint32_t vertex_pack(f16 a, f16 b)
-	{
-		return (uint32_t(a.raw_value) & 0xFFFF) | (uint32_t(b.raw_value) << 16);
-	}
-
-	struct disp_cmd
-	{
-		uint32_t params[2];
-		gfx_offset_t cmd;
-		uint8_t param_count;
-	};
-
-    struct vertex {
-        vector3f16 position;
-        vector3f16 normal;
-    };
-
-	struct disp_gen
-	{
-        disp_gen();
-        ~disp_gen();
-
-        disp_gen& diffuse_ambient(rgb diffuse, rgb ambient, bool set_vertex_color);
-        disp_gen& specular_emission(rgb specular, rgb emission, bool enable_shininess_table);
-
-        disp_gen& quad(rgb color,
-                       vector3f16 const& v0,
-                       vector3f16 const& v1,
-                       vector3f16 const& v2,
-                       vector3f16 const& v3);
-
-        disp_gen& quad(rgb color,
-                       vector3f16 const& normal,
-                       vector3f16 const& v0,
-                       vector3f16 const& v1,
-                       vector3f16 const& v2,
-                       vector3f16 const& v3);
-
-        disp_gen& quad(vertex const& v0, vertex const& v1, vertex const& v2, vertex const& v3);
-        disp_gen& tri(vertex const& v0, vertex const& v1, vertex const& v2);
-
-        disp_gen& tri( rgb color,
-                       vector3f16 const& v0,
-                       vector3f16 const& v1,
-                       vector3f16 const& v2);
-
-        disp_gen& tri( rgb color0,
-                       vector3f16 const& v0,
-                       rgb color1,
-                       vector3f16 const& v1,
-                       vector3f16 const& v2);
-
-        disp_gen& tri( rgb color0,
-                       vector3f16 const& v0,
-                       rgb color1,
-                       vector3f16 const& v1,
-                       rgb color2,
-                       vector3f16 const& v2);
-
-		disp_gen& quad_strip(rgb color, vector3f16 const* const vertices, unsigned const count);
-		disp_gen& triangle_strip(rgb color, vector3f16 const* const vertices, unsigned const count);
-
-        disp_gen& cmd(disp_cmd const& cmd);
-		display_list create();
-        void append_to(display_list& list);
-		void clear();
-
-        void swap(disp_gen& rhs);
-
-	private:
-        disp_gen(disp_gen const&);
-        disp_gen& operator=(disp_gen const&);
-
-        struct impl_;
-        std::unique_ptr<impl_> impl;
-	};
-
-    inline void swap(disp_gen& lhs, disp_gen& rhs)
-    {
-        lhs.swap(rhs);
-    }
 
     /*
     - drawing the level:
@@ -214,12 +141,6 @@ namespace std
 		lhs.swap(rhs);
 	}
 
-    template <>
-    inline
-    void swap<roads::disp_gen>(roads::disp_gen& lhs, roads::disp_gen& rhs) throw()
-    {
-        lhs.swap(rhs);
-    }
 }
 
 #endif // DSR_DISPLAYLIST_H

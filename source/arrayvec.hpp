@@ -10,7 +10,7 @@ namespace avpolicy {
     struct dummyst { virtual void f() = 0; };
     template <typename, size_t, template <typename> class, template <typename> class> struct arrayvec;
     template <typename> struct throw_on_overflow;
-    template <typename T, int Max, template <typename> class Under>
+    template <typename T, size_t Max, template <typename> class Under>
     struct throw_on_overflow<arrayvec<T, Max, throw_on_overflow, Under>> {
         void push_back(T const& t) {
             arrayvec<T, Max, ::avpolicy::throw_on_overflow, Under>* derived = static_cast<arrayvec<T, Max, ::avpolicy::throw_on_overflow, Under>*>(this);
@@ -22,7 +22,7 @@ namespace avpolicy {
         }
     };
     template <typename> struct assert_on_overflow;
-    template <typename T, int Max, template <typename> class Under>
+    template <typename T, size_t Max, template <typename> class Under>
     struct assert_on_overflow<arrayvec<T, Max, assert_on_overflow, Under>> {
         void push_back(T const& t) {
             arrayvec<T, Max, ::avpolicy::assert_on_overflow, Under>* derived = static_cast<arrayvec<T, Max, ::avpolicy::assert_on_overflow, Under>*>(this);
@@ -32,7 +32,7 @@ namespace avpolicy {
         }
     };
     template <typename> struct false_on_overflow;
-    template <typename T, int Max, template <typename> class Under>
+    template <typename T, size_t Max, template <typename> class Under>
     struct false_on_overflow<arrayvec<T, Max, false_on_overflow, Under>> {
         bool push_back(T const& t) {
             arrayvec<T, Max, ::avpolicy::false_on_overflow, Under>* derived = static_cast<arrayvec<T, Max, ::avpolicy::false_on_overflow, Under>*>(this);
@@ -44,7 +44,7 @@ namespace avpolicy {
         }
     };
     template <typename> struct throw_on_underflow;
-    template <typename T, int Max, template <typename> class Over>
+    template <typename T, size_t Max, template <typename> class Over>
     struct throw_on_underflow<arrayvec<T, Max, Over, throw_on_underflow>> {
         void pop_back() {
             arrayvec<T, Max, Over, ::avpolicy::throw_on_underflow>* derived = static_cast<arrayvec<T, Max, Over, ::avpolicy::throw_on_underflow>*>(this);
@@ -56,7 +56,7 @@ namespace avpolicy {
         }
     };
     template <typename> struct assert_on_underflow;
-    template <typename T, int Max, template <typename> class Over>
+    template <typename T, size_t Max, template <typename> class Over>
     struct assert_on_underflow<arrayvec<T, Max, Over, assert_on_underflow>> {
         void pop_back() {
             arrayvec<T, Max, Over, ::avpolicy::assert_on_underflow>* derived = static_cast<arrayvec<T, Max, Over, ::avpolicy::assert_on_underflow>*>(this);
@@ -66,7 +66,7 @@ namespace avpolicy {
         }
     };
     template <typename> struct false_on_underflow;
-    template <typename T, int Max, template <typename> class Over>
+    template <typename T, size_t Max, template <typename> class Over>
     struct false_on_underflow<arrayvec<T, Max, Over, false_on_underflow>> {
         bool pop_back() {
             arrayvec<T, Max, Over, ::avpolicy::false_on_underflow>* derived = static_cast<arrayvec<T, Max, Over, ::avpolicy::false_on_underflow>*>(this);
@@ -137,10 +137,10 @@ namespace avpolicy {
             }
         }
         template <typename ForwardIterator>
-            arrayvec(ForwardIterator b, ForwardIterator e) : liveCount(std::distance(b, e)) {
-                assert(liveCount <= Max);
-                construct(b, e);
-            }
+        arrayvec(ForwardIterator b, ForwardIterator e) : liveCount(std::distance(b, e)) {
+            assert(liveCount <= Max);
+            construct(b, e);
+        }
         arrayvec(arrayvec const& rhs) : liveCount(rhs.liveCount) {
             construct(rhs.begin(), rhs.end());
         }
@@ -148,6 +148,7 @@ namespace avpolicy {
             destroy();
             construct(rhs.begin(), rhs.end());
             liveCount = rhs.liveCount;
+            return *this;
         }
         ~arrayvec() {
             destroy();
@@ -172,19 +173,19 @@ namespace avpolicy {
 
     private:
         template <typename Fwd>
-            void construct(Fwd b, Fwd e) {
-                for(size_t i = 0; b != e; ++b, ++i) {
-                    try {
-                        new (get(i)) T(*b);
+        void construct(Fwd b, Fwd e) {
+            for(size_t i = 0; b != e; ++b, ++i) {
+                try {
+                    new (get(i)) T(*b);
+                }
+                catch(...) {
+                    for(size_t j = 0; j < i; ++j) {
+                        get(j)->~T();
                     }
-                    catch(...) {
-                        for(size_t j = 0; j < i; ++j) {
-                            get(j)->~T();
-                        }
-                        throw;
-                    }
+                    throw;
                 }
             }
+        }
 
         void destroy() {
             for(size_t i = 0; i < liveCount; ++i)
@@ -207,8 +208,9 @@ namespace avpolicy {
         } storage;
     };
 }
-
-using avpolicy::arrayvec;
+namespace roads {
+    using avpolicy::arrayvec;
+}
 
 
 #endif // ARRAYVEC_HPP
