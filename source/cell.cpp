@@ -24,6 +24,8 @@
 #define MAKE_GRAY(L) make_rgb(L, L, L)
 
 namespace roads {
+    int tunnel_count = 0;
+
     rgb cell::palette[256] = {
         cell::death_color, cell::life_color, cell::slow_color, cell::fast_color, cell::ice_color,
         MAKE_GRADIENT(MAKE_GRAY),
@@ -35,6 +37,16 @@ namespace roads {
         MAKE_GRADIENT(MAKE_YELLOW),
     };
 
+    inline rgb scale_rgb(rgb color, f32 scale) {
+        int16_t r = color & 31;
+        int16_t g = (color >> 5) & 31;
+        int16_t b = (color >> 10) & 31;
+        r = int16_t((scale * r).to_int());
+        g = int16_t((scale * g).to_int());
+        b = int16_t((scale * b).to_int());
+        return make_rgb(r, g, b);
+    }
+
     disp_writer& operator<<(disp_writer& writer, draw_cell const& drc) {
         auto saved = writer.save();
 
@@ -45,13 +57,18 @@ namespace roads {
         f16 const back = scale.z * -block;
 
         cell const c = drc.c;
-        vector3f16 const offset { drc.position.x, c.altitude * geometry::draw::block_size, 0 };
+        vector3f16 const offset { drc.position.x, c.altitude * geometry::draw::block_size * f16(0.5), 0 };
         vector3f16 const back_offset = offset + vector3f16{0, 0, back};
+        rgb const ambient = make_rgb(0, 0, 0);
+        rgb const tilec = scale_rgb(tile_color(c), f16(0.5));
+        rgb const blockc = scale_rgb(block_color(c), f16(0.5));
+
+        writer << specular_emission { make_rgb(0, 0, 0), make_rgb(0, 0, 0), false };
 
         if(c.flags & cell::tile) {
             // tile color
             writer
-                << diffuse_ambient { tile_color(c), make_rgb(8, 8, 8), true };
+                << diffuse_ambient { tilec, ambient, false };
 
             if(!(c.flags & cell::low || c.flags & cell::high)) {
                     // tile top
@@ -84,6 +101,9 @@ namespace roads {
                           offset + vector3f16{ block, 0,  back } };
         }
         if(c.flags & cell::tunnel) {
+            tunnel_count++;
+            iprintf("\x1b[12;2H"
+                    "drawing tunnel %d\n", tunnel_count);
             using geometry::tunnel::inner;
 
             vector3f16 const (&outer)[7] =
@@ -95,7 +115,7 @@ namespace roads {
 
             // front
             writer
-                << diffuse_ambient { block_color(c), make_rgb(8, 8, 8), true }
+                << diffuse_ambient { blockc, ambient, false }
                 << normal { { 0, 0, 1 } }
                 << quad_strip {
                     outer[0] + offset, inner[0] + offset,
@@ -109,7 +129,7 @@ namespace roads {
 
             // top
 
-            if(c.flags & cell::high || c.flags & cell::high) {
+            if((c.flags & cell::high) || (c.flags & cell::high)) {
                 writer
                     << normal { { 1, 0, 0 } }
                     << quad { outer[0] + back_offset, outer[0] + offset, outer[2] + offset, outer[2] + back_offset }
@@ -133,7 +153,7 @@ namespace roads {
                         });
             }
         }
-        else if(c.flags & cell::low || c.flags & cell::high) {
+        else if((c.flags & cell::low) || (c.flags & cell::high)) {
             bool const has_tile = c.flags & cell::tile;
             f16 const top = (c.flags & cell::low)
                 ? geometry::draw::short_height + tile
@@ -141,7 +161,7 @@ namespace roads {
             f16 const bottom = has_tile ? tile : 0;
 
             writer
-                << diffuse_ambient { block_color(c), make_rgb(8, 8, 8), true }
+                << diffuse_ambient { blockc, ambient, false }
                 // block top
                 << normal { { 0, 1, 0 } }
                 << quad { offset + vector3f16{ 0,     top, 0 },

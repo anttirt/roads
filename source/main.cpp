@@ -37,100 +37,49 @@ int main(void) {
 
 #else // RUN_UNIT_TESTS
 
-#include <boost/array.hpp>
-#include <vector>
 #include <stdexcept>
 #include <nds.h>
 
-#include "display_list.h"
-#include "disp_writer.h"
-#include "utility.h"
-#include "cell.h"
-#include "vector.h"
-#include "fixed16.h"
-#include "geometry.h"
+#include "level.h"
 
-typedef boost::array<roads::cell, 7> row;
-typedef std::vector<row> level_data;
+extern const unsigned char level_data_test0[15182];
+static const char headerText[] = "DSRoads Level file v0.003\n";
 
-level_data make_level_data() {
-    using namespace roads;
-    row r0 {
-        cell { cell::life, cell::life, 1, cell::tile },
-        cell { cell::life, cell::life, 1, cell::tile },
-        cell { cell::fast, cell::life, 1, cell::tile },
-        cell { cell::life, cell::life, 1, cell::tile },
-        cell { cell::fast, cell::life, 1, cell::tile },
-        cell { cell::life, cell::life, 1, cell::tile },
-        cell { cell::life, cell::life, 1, cell::tile },
-    };
+int tunnel_count;
 
-    row r1 {
-        cell { cell::life, cell::life, 1, cell::tile },
-        cell { cell::fast, cell::life, 1, cell::tile },
-        cell { cell::life, cell::life, 1, cell::tile },
-        cell { cell::life, cell::life, 1, cell::tile },
-        cell { cell::life, cell::life, 1, cell::tile },
-        cell { cell::fast, cell::life, 1, cell::tile },
-        cell { cell::life, cell::life, 1, cell::tile },
-    };
-
-    level_data data;
-    for(size_t i = 0; i < 5; ++i) {
-        for(size_t j = 0; j < 5; ++j) { data.push_back(r0); }
-        data.push_back(r1);
-        data.push_back(r0);
-        for(size_t j = 0; j < 5; ++j) { data.push_back(r1); }
-        data.push_back(r0);
-        data.push_back(r1);
-    }
-    return std::move(data);
+inline roads::cell unpack(unsigned char first, unsigned char second) {
+    using roads::cell;
+    cell c {};
+    c.tile_color = first & 0x0F;
+    c.block_color = (first & 0xF0) >> 4;
+    c.altitude = (second & 0x70) >> 4;
+    c.flags = cell::none;
+    if(second & 0x01) { c.flags |= cell::tile; }
+    if(second & 0x02) { c.flags |= cell::tunnel; ++tunnel_count; }
+    if(second & 0x04) { c.flags |= cell::low; }
+    if(second & 0x08) { c.flags |= cell::high; }
+    if(second & 0x80) { c.flags |= cell::end; }
+    return c;
 }
 
-namespace roads {
-
-}
-
-roads::display_list generate_list() {
+roads::grid_t make_level_data() {
     using namespace roads;
 
-    display_list lst;
-    lst.resize(4096);
+    constexpr size_t gravity_offset = countof(headerText) - 1;
+    constexpr size_t oxygen_leak_offset = gravity_offset + 2;
+    constexpr size_t palette_offset = oxygen_leak_offset + 2;
+    constexpr size_t grid_offset = palette_offset + (16 * sizeof(rgb));
+    constexpr size_t cell_count = (countof(level_data_test0) - grid_offset) / 2;
+    constexpr size_t row_count = cell_count / 7;
 
-    disp_writer writer(lst, { 0, 0, -1 }, { 12, 12, 12 });
+    memcpy(cell::palette, level_data_test0 + palette_offset, sizeof(rgb) * 16);
+    grid_t grid(row_count);
+    memcpy(&grid[0], level_data_test0 + grid_offset, countof(level_data_test0) - grid_offset);
 
-    cell c0 { cell::life, cell::death, 0, cell::tile | cell::high };
-    cell c1 { cell::life, cell::death, 0, cell::tile | cell::low };
-    cell c2 { cell::life, cell::death, 0, cell::tile };
-    cell c3 { cell::ice, cell::death, 0, cell::tile };
-    cell c4 { cell::fast, cell::fast, 0, cell::high };
-    cell c5 { cell::fast, cell::fast, 0, cell::tunnel };
-    cell c6 { cell::fast, cell::fast, 0, cell::tunnel | cell::high };
-    cell c7 { cell::fast, cell::fast, 0, cell::tunnel | cell::low | cell::tile };
-
-    writer
-        << draw_cell { c0, { 0, 0, 0, }, { 1, 1, 5 } }
-        << draw_cell { c1, { geometry::draw::block_size, 0, 0, }, { 1, 1, 5 } }
-        << draw_cell { c2, { geometry::draw::block_size*2, 0, 0, }, { 1, 1, 5 } }
-        << draw_cell { c3, { geometry::draw::block_size*3, 0, 0, }, { 1, 1, 5 } }
-        << draw_cell { c4, { geometry::draw::block_size*-1, 0, 0, }, { 1, 1, 5 } }
-        << draw_cell { c5, { geometry::draw::block_size*-2, 0, 0, }, { 1, 1, 5 } }
-        << draw_cell { c6, { geometry::draw::block_size*-3, 0, 0, }, { 1, 1, 5 } }
-        << draw_cell { c7, { geometry::draw::block_size*-4, 0, 0, }, { 1, 1, 5 } }
-        << end;
-
-    lst.resize(writer.write_count());
-
-    iprintf("wrote 1 cell\ncount: %d\n", writer.write_count());
-    iprintf("writer is %sokay", writer ? "" : "NOT ");
-
-    return std::move(lst);
+    return std::move(grid);
 }
 
 int main() {
-	float rotateX = 0.0;
-	float rotateY = 0.0;
-
     lcdMainOnTop();
 	//set mode 0, enable BG0 and set it to 3D
 	videoSetMode(MODE_0_3D);
@@ -157,34 +106,50 @@ int main() {
 	glLoadIdentity();
 	gluPerspective(70, 256.0 / 192.0, 0.1, 40);
 	
-	gluLookAt(	0.0, 0.0, 3.5,		//camera possition 
+	gluLookAt(	0.0, 0.25, 0.3,		//camera position 
 				0.0, 0.0, 0.0,		//look at
 				0.0, 1.0, 0.0);		//up
 	
     using roads::vector3d;
-    constexpr vector3d ln = vector3d(1, -1, -1).normalized();
+    constexpr vector3d ln = vector3d(1, -1, -0.2).normalized();
 
-	glLight(0, roads::make_rgb(0.1,0.1,0.1),
+	glLight(0, roads::make_rgb(1.,1.,1.),
             floattov10(ln.x), floattov10(ln.y), floattov10(ln.z));
 	glPolyFmt(POLY_ALPHA(31) | POLY_CULL_BACK | POLY_FORMAT_LIGHT0);
 
-    roads::display_list list = generate_list();
+    roads::level lvl { make_level_data() };
+
+    //roads::display_list list = generate_list();
+    using roads::f32;
+
+    f32 const move_unit = -0.03;
+    f32 move_z = 0;
 	
 	while(1)
 	{
 		glPushMatrix();
 				
-		glRotateX(rotateX);
-		glRotateY(rotateY);
+        glTranslatef32(0, 0, raw(move_z));
 		
 		scanKeys();
 		u16 keys = keysHeld();
-		if(!(keys & KEY_UP)) rotateX += 3;
-		if(!(keys & KEY_DOWN)) rotateX -= 3;
-		if(!(keys & KEY_LEFT)) rotateY += 3;
-		if(!(keys & KEY_RIGHT)) rotateY -= 3;
+		if(!(keys & KEY_UP)) move_z += move_unit;
+		if(!(keys & KEY_DOWN)) move_z -= move_unit;
 		
-        list.draw();
+        // updating the level's draw lists should be delayed a little so that rows
+        // don't disappear while they're still on screen
+        lvl.update(clamp(move_z - f32(0.3), f32(0), f32(INT_MAX, roads::raw_tag)));
+        lvl.draw();
+
+        iprintf("\x1b[1;2H"
+                "grid size: %d\n"
+                "drawq size: %d\n"
+                "drawp size: %d\n"
+                "dist: %d\n",
+                lvl.grid.size(),
+                lvl.draw_queue.size(),
+                lvl.draw_pool.size(),
+                (lvl.visible_end - lvl.visible_start));
 
 		glPopMatrix(1);
 			

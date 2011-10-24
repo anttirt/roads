@@ -4,15 +4,11 @@
 #include <array>
 #include <vector>
 #include <list>
-#include <queue>
-#include <algorithm>
 
 #include "cell.h"
 #include "vector.h"
 #include "fixed16.h"
 #include "display_list.h"
-#include "disp_writer.h"
-#include "geometry.h"
 
 namespace roads {
     struct cell_aux {
@@ -55,16 +51,21 @@ namespace roads {
             draw_distance = 25
         };
 
-    private:
+        level(grid_t&& src_grid)
+            : grid(std::move(src_grid)),
+              visible_start(grid.begin()),
+              visible_end(grid.begin())
+        {
+        }
+
+    //private:
         grid_t grid;
         grid_t::iterator visible_start, visible_end;
         draw_queue_t draw_queue;
         // pool up our display data buffers to avoid unnecessary allocations
         draw_queue_t draw_pool;
 
-
         display_row get_display_row();
-
         display_row generate_row_display_list(grid_t::iterator rowp);
     };
 }

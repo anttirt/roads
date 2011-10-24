@@ -32,7 +32,7 @@ GRAPHICS	:=	gfx
 #---------------------------------------------------------------------------------
 ARCH		:=	-mthumb -mthumb-interwork
 
-CFLAGS	:=	-g -Wall -Wuninitialized -Wno-missing-braces -Wfatal-errors -O3\
+CFLAGS	:=	-g -Wall -Wuninitialized -Wno-missing-braces -Wfatal-errors -O2\
  			-march=armv5te -mtune=arm946e-s -fomit-frame-pointer\
 			-ffast-math \
 			$(ARCH)

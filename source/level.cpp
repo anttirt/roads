@@ -37,11 +37,11 @@ namespace roads {
         vector3f32 const translation(
             xoff,
             0,
-            f32(block_size) * std::distance(grid.begin(), rowp));
+            -f32(block_size) * std::distance(grid.begin(), rowp));
 
         disp_writer writer(result.data, translation, geometry::draw::scale);
 
-        vector3f16 cell_offset { xoff, 0, 0 };
+        vector3f16 cell_offset { 0, 0, 0 };
         for(size_t i = 0; i < rowp->size(); ++i, cell_offset.x += block_size) {
             cell_aux aux = (*rowp)[i];
             if(aux.depth > 0) {

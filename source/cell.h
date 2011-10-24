@@ -212,9 +212,12 @@ namespace roads
     //constexpr bool operator>( cell l, cell l) { return l.to_tuple() > r.to_tuple(); }
     //constexpr bool operator<=(cell l, cell l) { return l.to_tuple() <= r.to_tuple();  }
     //constexpr bool operator>=(cell l, cell l) { return l.to_tuple() >= r.to_tuple();  }
-    //constexpr bool operator==(cell l, cell l) { return l.to_tuple() == r.to_tuple();  }
-    //constexpr bool operator!=(cell l, cell l) { return l.to_tuple() != r.to_tuple();  }
-    //
+    constexpr bool operator==(cell l, cell r) {
+        return l.tile_color == r.tile_color && l.block_color == r.block_color
+            && l.altitude == r.altitude && l.flags == r.flags;
+    }
+    constexpr bool operator!=(cell l, cell r) { return !(l == r);  }
+    
 
     inline rgb block_color(cell c) { return cell::palette[c.block_color]; }
     inline rgb tile_color(cell c) { return cell::palette[c.tile_color]; }

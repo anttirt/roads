@@ -387,7 +387,11 @@ namespace roads
             return *this;
         }
         fixed32& operator+=(fixed32 const& rhs) {
-            raw_value = ((*this) + rhs).raw_value;
+            raw_value += rhs.raw_value;
+            return *this;
+        }
+        fixed32& operator-=(fixed32 const& rhs) {
+            raw_value -= rhs.raw_value;
             return *this;
         }
 
@@ -397,6 +401,10 @@ namespace roads
 
         constexpr double to_double() {
             return double(raw_value) / (1 << Frac);
+        }
+
+        constexpr fixed32 operator-() {
+            return fixed32(-raw_value, raw_tag);
         }
         
         constexpr int32_t to_int() {
@@ -412,6 +420,42 @@ namespace roads
 		return (uint32_t(raw(a)) & 0xFFFF) | (uint32_t(raw(b)) << 16);
 	}
 
+    template <unsigned Lhs, unsigned Rhs>
+    constexpr bool operator==(fixed32<Lhs> lhs, fixed32<Rhs> rhs)
+    {
+        return lhs.raw_value == fixed32<Lhs>(rhs).raw_value;
+    }
+    template <unsigned Lhs, unsigned Rhs>
+    constexpr bool operator!=(fixed32<Lhs> lhs, fixed32<Rhs> rhs)
+    {
+        return !(lhs == rhs);
+    }
+
+    template <unsigned Lhs, unsigned Rhs>
+    constexpr bool operator<(fixed32<Lhs> lhs, fixed32<Rhs> rhs)
+    {
+        return lhs.raw_value < fixed32<Lhs>(rhs).raw_value;
+    }
+    template <unsigned Lhs, unsigned Rhs>
+    constexpr bool operator>(fixed32<Lhs> lhs, fixed32<Rhs> rhs)
+    {
+        return lhs.raw_value > fixed32<Lhs>(rhs).raw_value;
+    }
+    template <unsigned Lhs, unsigned Rhs>
+    constexpr bool operator<=(fixed32<Lhs> lhs, fixed32<Rhs> rhs)
+    {
+        return lhs.raw_value <= fixed32<Lhs>(rhs).raw_value;
+    }
+    template <unsigned Lhs, unsigned Rhs>
+    constexpr bool operator>=(fixed32<Lhs> lhs, fixed32<Rhs> rhs)
+    {
+        return lhs.raw_value >= fixed32<Lhs>(rhs).raw_value;
+    }
+    template <unsigned N>
+    constexpr fixed32<N> clamp(fixed32<N> val, fixed32<N> min, fixed32<N> max)
+    {
+        return (val < min) ? min : ((val > max) ? max : val);
+    }
 
     template <unsigned Frac>
     constexpr fixed32<Frac> operator+(fixed32<Frac> lhs, fixed32<Frac> rhs) {
