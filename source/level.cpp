@@ -58,7 +58,8 @@ namespace roads {
     }
 
     void level::update(f32 position) {
-        grid_t::iterator start = grid.begin() + std::min(floor(position / f32(geometry::draw::block_size)).to_int(), int32_t(grid.size()));
+        // note: z is negative forward so we negate the position for grid indexing
+        grid_t::iterator start = grid.begin() + std::min(floor(-position / f32(geometry::draw::block_size)).to_int(), int32_t(grid.size()));
         grid_t::iterator end = grid.begin() + std::min(std::distance(grid.begin(), start) + draw_distance, int32_t(grid.size()));
 
         if(start > visible_start) {

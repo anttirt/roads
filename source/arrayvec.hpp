@@ -106,6 +106,8 @@ namespace avpolicy {
         typedef T value_type;
         typedef T* iterator;
         typedef T const* const_iterator;
+        typedef std::ptrdiff_t difference_type;
+        typedef std::size_t size_type;
 
         arrayvec() : liveCount(0) {}
         arrayvec(size_t n) : liveCount(n) {
@@ -165,6 +167,19 @@ namespace avpolicy {
 
         size_t size() const { return liveCount; }
         size_t capacity() const { return Max; }
+
+        void erase(iterator from, iterator to) {
+            iterator const e = end();
+            for(iterator destroy = from, create = to; destroy < to; ++destroy) {
+                destroy->~T();
+                if(create != e) {
+                    new (destroy) T(*create);
+                    create->~T();
+                    ++create;
+                }
+            }
+            liveCount -= (to - from);
+        }
 
         T& operator[](size_t ix) { assert(ix < liveCount); return *get(ix); }
         T const& operator[](size_t ix) const { assert(ix < liveCount); return *get(ix); }

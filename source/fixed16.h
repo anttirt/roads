@@ -168,6 +168,9 @@ namespace roads
     ////////////////////////////////////////////////////////////////////////////
     
     template <unsigned Frac>
+    struct fixed32;
+
+    template <unsigned Frac>
     struct fixed16
     {
         int16_t raw_value;
@@ -185,6 +188,8 @@ namespace roads
             : raw_value(detail::convert<0, Frac>(rhs))
         {
         }
+
+        constexpr fixed16(fixed32<Frac> rhs) : raw_value(rhs.raw_value) {}
 
         template <typename T>
         constexpr fixed16(T rhs, raw_tag_t) : raw_value(rhs) {

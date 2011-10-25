@@ -146,7 +146,7 @@ namespace roads
         );
     }
 
-    template <typename Elem> inline constexpr bool operator==(vector<Elem, 2> a, vector<Elem, 3> b) {
+    template <typename Elem> inline constexpr bool operator==(vector<Elem, 2> a, vector<Elem, 2> b) {
         return a.x == b.x && a.y == b.y;
     }
     template <typename Elem> inline constexpr bool operator==(vector<Elem, 3> a, vector<Elem, 3> b) {
@@ -154,6 +154,37 @@ namespace roads
     }
     template <typename Elem, unsigned N> inline constexpr bool operator!=(vector<Elem, N> a, vector<Elem, N> b) {
         return !(a == b);
+    }
+
+    template <typename Elem>
+    constexpr bool operator<(vector<Elem, 2> const& l, vector<Elem, 2> const& r) {
+        return
+            l.x < r.x ? true :
+            (l.x > r.x ? false :
+             (l.y < r.y));
+    }
+
+    template <typename Elem>
+    constexpr bool operator<(vector<Elem, 3> const& l, vector<Elem, 3> const& r) {
+        return
+            l.x < r.x ? true :
+            (l.x > r.x ? false :
+             (l.y < r.y ? true :
+              (l.y > r.y ? false :
+               (l.z < r.z))));
+    }
+
+    template <typename Elem, unsigned N>
+    constexpr bool operator>=(vector<Elem, N> const& l, vector<Elem, N> const& r) {
+        return !(l < r);
+    }
+    template <typename Elem, unsigned N>
+    constexpr bool operator>(vector<Elem, N> const& l, vector<Elem, N> const& r) {
+        return r < l;
+    }
+    template <typename Elem, unsigned N>
+    constexpr bool operator<=(vector<Elem, N> const& l, vector<Elem, N> const& r) {
+        return !(r < l);
     }
 
     typedef vector<double, 2> vector2d;

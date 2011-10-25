@@ -67,7 +67,8 @@ namespace roads
                 // and added to a display list.
             runtime_drawn = 0x20,
 
-            elide_flags = 0x01 | 0x02 | 0x04 | 0x08
+            elide_flags = 0x01 | 0x02 | 0x04 | 0x08,
+            geometry = tile | low | tunnel | high
         }; 
             /*
             static inline v16 fv16(float f)

@@ -24,7 +24,6 @@
 #define MAKE_GRAY(L) make_rgb(L, L, L)
 
 namespace roads {
-    int tunnel_count = 0;
 
     rgb cell::palette[256] = {
         cell::death_color, cell::life_color, cell::slow_color, cell::fast_color, cell::ice_color,
@@ -101,9 +100,6 @@ namespace roads {
                           offset + vector3f16{ block, 0,  back } };
         }
         if(c.flags & cell::tunnel) {
-            tunnel_count++;
-            iprintf("\x1b[12;2H"
-                    "drawing tunnel %d\n", tunnel_count);
             using geometry::tunnel::inner;
 
             vector3f16 const (&outer)[7] =

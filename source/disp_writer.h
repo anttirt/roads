@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cassert>
 #include <initializer_list>
+#include <type_traits>
 #include "glcore.h"
 #include "fixed16.h"
 #include "vector.h"
@@ -29,7 +30,7 @@ namespace roads {
      * either all succeed or all fail, you can use the save and reset member
      * functions:
      *
-     *     disp_writer& write_four(thing a, thing b, thing c, thing d) {
+     *     disp_writer& write_four(disp_writer& writer, thing a, thing b, thing c, thing d) {
      *         auto state = writer.save();
      *         writer << a << b << c << d;
      *         if(!writer) {
@@ -122,7 +123,7 @@ namespace roads {
         // spec at http://nocash.emubase.de/gbatek.htm the "top-most packed
         // command MUST have parameters" so if we get a command with zero
         // parameters in that slot, we will put a nop in that command's place
-        // and defer it to the next flush.
+        // and defer the actual command to the next flush.
         disp_writer& flush_pipe() {
             // Insert nops if we don't have a full pack of four commands.
             for(size_t i = pipe_index; i < 4; ++i) {
@@ -273,6 +274,9 @@ namespace roads {
     struct fnquad {
         fvertex a, b, c, d;
     };
+    struct tri {
+        vector3f16 a, b, c;
+    };
     struct normal {
         constexpr normal(vector3f16 const& data) : packed(normal_pack(data)) {}
         constexpr normal(uint32_t packed) : packed(packed) {}
@@ -387,6 +391,19 @@ namespace roads {
     inline disp_writer& operator<<(disp_writer& writer, writer_end_t) {
         return writer.finish();
     }
+    namespace detail {
+        template <typename T> T fake();
+    }
+
+    // This utility makes passing modifier functions easier.
+    template <typename F>
+    inline
+    typename std::enable_if<std::is_same<
+                    decltype(detail::fake<F>()(detail::fake<disp_writer&>())),
+                    disp_writer&>::value, disp_writer&>::type
+    operator<<(disp_writer& writer, F f) {
+        return f(writer);
+    }
 
     inline disp_writer& operator<<(disp_writer& writer, quad const& q) {
         auto saved = writer.save();
@@ -396,6 +413,13 @@ namespace roads {
         return writer;
     }
 
+    inline disp_writer& operator<<(disp_writer& writer, tri const& t) {
+        auto saved = writer.save();
+        writer.push(gfx_begin, gl_triangles) << t.a << t.b << t.c;
+        if(!writer)
+            writer.reset(saved);
+        return writer;
+    }
 }
 
 #endif // ROADS_DISP_WRITER_H

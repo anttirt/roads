@@ -41,26 +41,13 @@ int main(void) {
 #include <nds.h>
 
 #include "level.h"
+#include "variant_access.hpp"
+#include "collide.h"
+#include "geometry.h"
+#include "disp_writer.h"
 
 extern const unsigned char level_data_test0[15182];
 static const char headerText[] = "DSRoads Level file v0.003\n";
-
-int tunnel_count;
-
-inline roads::cell unpack(unsigned char first, unsigned char second) {
-    using roads::cell;
-    cell c {};
-    c.tile_color = first & 0x0F;
-    c.block_color = (first & 0xF0) >> 4;
-    c.altitude = (second & 0x70) >> 4;
-    c.flags = cell::none;
-    if(second & 0x01) { c.flags |= cell::tile; }
-    if(second & 0x02) { c.flags |= cell::tunnel; ++tunnel_count; }
-    if(second & 0x04) { c.flags |= cell::low; }
-    if(second & 0x08) { c.flags |= cell::high; }
-    if(second & 0x80) { c.flags |= cell::end; }
-    return c;
-}
 
 roads::grid_t make_level_data() {
     using namespace roads;
@@ -77,6 +64,78 @@ roads::grid_t make_level_data() {
     memcpy(&grid[0], level_data_test0 + grid_offset, countof(level_data_test0) - grid_offset);
 
     return std::move(grid);
+}
+
+int corr, fell, none;
+
+void check_collisions(roads::vector3f32 const& ship_position, roads::vector3f32 const& velocity, roads::grid_t const& grid) {
+    using namespace roads;
+
+    auto collide_result = collide(ship_position, velocity, grid);
+    visit<void>(collide_result,
+        [](collision::correction cor) {
+            iprintf("\x1b[3;2H"
+                    "corr: %d",
+                    corr++
+                    );
+        },
+        [](collision::fell_off) {
+            iprintf("\x1b[4;2H"
+                    "fell: %d",
+                    fell++
+                    );
+        },
+        [](collision::none) {
+            iprintf("\x1b[5;2H"
+                    "none: %d",
+                    none++
+                    );
+        });
+}
+
+void draw_last_bounds() {
+    using namespace roads;
+
+    int count = 0;
+    glMaterialf(GL_DIFFUSE, make_rgb(31, 31, 31));
+    glMaterialf(GL_AMBIENT, make_rgb(31, 31, 31));
+    glColor(make_rgb(31, 31, 31));
+    for(aabb const& box : last_bounds) {
+        ++count;
+        glPushMatrix();
+        vector3f32 pos = box.min;
+        vector3f16 max = (box.max - box.min).convert<f16>();
+        int16_t x = raw(max.x), y0 = raw(geometry::draw::block_size * f16(0.5)), y = raw(max.y) + y0, z = raw(max.z);
+        glTranslatef32(raw(pos.x), raw(pos.y), raw(pos.z));
+        glBegin(GL_TRIANGLES);
+
+        glVertex3v16(0, y0, 0); glVertex3v16(x, y0, 0); glVertex3v16(x, y0, 0);
+        glVertex3v16(0, y0, 0); glVertex3v16(0, y, 0); glVertex3v16(0, y, 0);
+        glVertex3v16(0, y0, 0); glVertex3v16(0, y0, z); glVertex3v16(0, y0, z);
+                                                                            
+        glVertex3v16(x, y, z); glVertex3v16(0, y, z); glVertex3v16(0, y, z);
+        glVertex3v16(x, y, z); glVertex3v16(x, y0, z); glVertex3v16(x, y0, z);
+        glVertex3v16(x, y, z); glVertex3v16(x, y, 0); glVertex3v16(x, y, 0);
+
+        glVertex3v16(x, y0, 0); glVertex3v16(x, y0, z); glVertex3v16(x, y0, z);
+        glVertex3v16(x, y0, 0); glVertex3v16(x, y, 0); glVertex3v16(x, y, 0);
+                                                                            
+        glVertex3v16(0, y, 0); glVertex3v16(x, y, 0); glVertex3v16(x, y, 0);
+        glVertex3v16(0, y, 0); glVertex3v16(0, y, z); glVertex3v16(0, y, z);
+                                                                            
+        glVertex3v16(0, y0, z); glVertex3v16(0, y, z); glVertex3v16(0, y, z);
+        glVertex3v16(0, y0, z); glVertex3v16(x, y0, z); glVertex3v16(x, y0, z);
+                                                                             
+        glEnd();
+        glPopMatrix(1);
+    }
+    aabb const& smp = last_bounds.back();
+    printf("\x1b[14;0H"
+            "%.3f,%.3f,%.3f\n"
+            "%.3f,%.3f,%.3f\n",
+            smp.min.x.to_float(),smp.min.y.to_float(),smp.min.z.to_float(),
+            smp.max.x.to_float(),smp.max.y.to_float(),smp.max.z.to_float()
+            );
 }
 
 int main() {
@@ -106,7 +165,7 @@ int main() {
 	glLoadIdentity();
 	gluPerspective(70, 256.0 / 192.0, 0.1, 40);
 	
-	gluLookAt(	0.0, 0.25, 0.3,		//camera position 
+	gluLookAt(	0.0, 0.3, 0.02,		//camera position 
 				0.0, 0.0, 0.0,		//look at
 				0.0, 1.0, 0.0);		//up
 	
@@ -122,34 +181,74 @@ int main() {
     //roads::display_list list = generate_list();
     using roads::f32;
 
-    f32 const move_unit = -0.03;
-    f32 move_z = 0;
+    f32 const move_unit = 0.005;
+    roads::vector3f32 move { };
+
+    roads::display_list ship;
+    ship.resize(128);
+
+    {
+        using namespace roads;
+        using geometry::draw::ship_size;
+        move.x = ship_size.x * f32(-0.5);
+        move.y = geometry::draw::tile_height;
+        move.z = ship_size.z * f32(0.5) - f32(geometry::draw::block_size) * f32(0.5);
+        disp_writer writer(ship, move, geometry::draw::scale);
+
+        f16 x = f16(raw(ship_size.x), raw_tag);
+        f16 y = f16(raw(ship_size.y), raw_tag);
+        f16 z = -f16(raw(ship_size.z), raw_tag);
+
+        writer
+            << diffuse_ambient { make_rgb(10, 10, 10), make_rgb(0, 0, 0), false }
+            << quad { { 0, 0, 0 }, { x, 0, 0 }, { x, y, 0 }, { 0, y, 0 } }
+            << quad { { 0, 0, 0 }, { 0, y, 0 }, { 0, y, z }, { 0, 0, z } }
+            << quad { { x, 0, 0 }, { x, 0, z }, { x, y, z }, { x, z, 0 } }
+            << quad { { 0, y, 0 }, { x, y, 0 }, { x, y, z }, { 0, y, z } }
+            << end;
+        ship.resize(writer.write_count());
+    }
 	
 	while(1)
 	{
 		glPushMatrix();
 				
-        glTranslatef32(0, 0, raw(move_z));
+        glTranslatef32(0, 0, raw(-move.z));
 		
 		scanKeys();
 		u16 keys = keysHeld();
-		if(!(keys & KEY_UP)) move_z += move_unit;
-		if(!(keys & KEY_DOWN)) move_z -= move_unit;
+        roads::vector3f32 velocity { 0, 0, 0 };
+		if(keys & KEY_UP)    { velocity.z -= move_unit; }
+		if(keys & KEY_DOWN)  { velocity.z += move_unit; }
+		if(keys & KEY_LEFT)  { velocity.x -= move_unit; }
+		if(keys & KEY_RIGHT) { velocity.x += move_unit; }
 		
+        using roads::raw_tag;
+        check_collisions(move, velocity, lvl.grid);
+
+        move += velocity;
+
         // updating the level's draw lists should be delayed a little so that rows
         // don't disappear while they're still on screen
-        lvl.update(clamp(move_z - f32(0.3), f32(0), f32(INT_MAX, roads::raw_tag)));
+        lvl.update(clamp(f32(0.3) + move.z, f32(INT_MIN, roads::raw_tag), f32(0)));
         lvl.draw();
 
-        iprintf("\x1b[1;2H"
-                "grid size: %d\n"
-                "drawq size: %d\n"
-                "drawp size: %d\n"
-                "dist: %d\n",
-                lvl.grid.size(),
-                lvl.draw_queue.size(),
-                lvl.draw_pool.size(),
-                (lvl.visible_end - lvl.visible_start));
+        ship.data()[10] = raw(move.x);
+        ship.data()[11] = raw(move.y);
+        ship.data()[12] = raw(move.z);
+        ship.draw();
+
+        draw_last_bounds();
+
+        //iprintf("\x1b[1;2H"
+        //        "grid size: %d\n"
+        //        "drawq size: %d\n"
+        //        "drawp size: %d\n"
+        //        "dist: %d\n",
+        //        lvl.grid.size(),
+        //        lvl.draw_queue.size(),
+        //        lvl.draw_pool.size(),
+        //        (lvl.visible_end - lvl.visible_start));
 
 		glPopMatrix(1);
 			
