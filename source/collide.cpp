@@ -3,22 +3,41 @@
 #include <algorithm>
 #include "arrayvec.hpp"
 #include "geometry.h"
+#include "variant_access.hpp"
 
-#include "disp_writer.h"
 
 namespace roads {
+    struct compare_sweep_result {
+        bool operator()(roads::sweep_result_t const& l, roads::sweep_result_t const& r) {
+            using namespace roads;
+            using namespace sweep;
+            return visit_binary<bool>(l, r,
+                [](already a, already b) { return a.index < b.index; },
+                [](already,   never)     { return true; },
+                [](already,   from)      { return true; },
+
+                [](from,      already)   { return false; },
+                [](from a,    from b) -> bool {
+                    if(a.index < b.index) {
+                        return true;
+                    }
+                    else if(a.index > b.index) {
+                        return false;
+                    }
+                    else {
+                        return a.time < b.time;
+                    }
+                },
+                [](from,      never)     { return true; },
+
+                [](never,     already)   { return false; },
+                [](never,     from)      { return false; },
+                [](never,     never)     { return false; }
+                );
+        }
+    };
     void select_tiles(vector3f32 const& position, arrayvec<vector2i, 8>& out);
     void make_bounds(vector2i position, grid_t const& grid, arrayvec<aabb, 32>& ret);
-
-    // This assumes the first argument is stationary, but can easily be used
-    // for two moving objects by transforming the variables into the reference
-    // frame of the first object. The return value is always [0,1[ and represents
-    // the fraction of the time step at which the collision occurred, or 1 if
-    // there was no collision. You can get the value of b.min at the collision
-    // by multiplying velocity by the return value.
-    f32 sweep_collide(aabb const& a, aabb const& b, vector3f32 const& velocity);
-
-
     void select_tiles(vector3f32 const& position, arrayvec<vector2i, 8>& out) {
         f32 const xoff = geometry::draw::ship_size.x;
         f32 const zoff = geometry::draw::ship_size.z;
@@ -26,8 +45,8 @@ namespace roads {
 
         int x1 = floor(f32(3.5) + (position.x       ) / block_size).to_int();
         int x2 = floor(f32(3.5) + (position.x + xoff) / block_size).to_int();
-        int z1 = floor(          -(position.z - zoff) / block_size).to_int();
-        int z2 = floor(          -(position.z       ) / block_size).to_int();
+        int z1 = floor(          -(position.z       ) / block_size).to_int();
+        int z2 = floor(          -(position.z + zoff) / block_size).to_int();
 
         //z1 = -z1;
         //z2 = -z2;
@@ -41,30 +60,32 @@ namespace roads {
             return; // The ship has fallen off!
 
         if(x1 == x2 && z1 == z2) {
-            out.push_back({x1, z1});
+            out.push_back({z1, x1});
         }
         else if(x1 == x2) {
-            out.push_back({x1, z1});
-            out.push_back({x1, z2});
+            out.push_back({z1, x1});
+            out.push_back({z1, x2});
         }
         else if(z1 == z2) {
-            out.push_back({x1, z1});
-            out.push_back({x2, z1});
+            out.push_back({z1, x1});
+            out.push_back({z2, x1});
         }
         else {
-            out.push_back({x1, z1});
-            out.push_back({x2, z1});
-            out.push_back({x1, z2});
-            out.push_back({x2, z2});
+            out.push_back({z1, x1});
+            out.push_back({z2, x1});
+            out.push_back({z1, x2});
+            out.push_back({z2, x2});
         }
     }
     void make_bounds(vector2i grid_index, grid_t const& grid, arrayvec<aabb, 32>& ret) {
-        if(grid_index.y < 0 || grid_index.y >= grid.size())
+        int const row = grid_index.x;
+        int const col = grid_index.y;
+        if(row < 0 || row >= grid.size())
             return;
-        if(grid_index.x < 0 || grid_index.x > 7)
+        if(col < 0 || col > 7)
             return;
 
-        cell c = grid[grid_index.y][grid_index.x].data;
+        cell c = grid[row][col].data;
 
         if(!(c.flags & cell::geometry)) {
             return;
@@ -74,11 +95,11 @@ namespace roads {
         constexpr f32 tile_height = f32(geometry::draw::tile_height);
         constexpr f32 short_height = f32(geometry::draw::short_height);
 
-        f32 const base_height = block_size * f32(0.5) * c.altitude;
+        f32 const base_height = geometry::draw::altitude_step * c.altitude;
 
-        f32 const left = (f32(grid_index.x) - f32(3.5)) * block_size;
+        f32 const left = (f32(col) - f32(3.5)) * block_size;
         f32 const right = left + block_size;
-        f32 const front = f32(-grid_index.y) * block_size;
+        f32 const front = f32(-row) * block_size;
         f32 const back = front - block_size;
 
         if(c.flags & cell::tunnel) {
@@ -125,39 +146,100 @@ namespace roads {
             ret.push_back({{left, bottom, back}, {right, top, front}});
         }
     }
-    f32 sweep_collide(aabb const& a, aabb const& b, vector3f32 const& velocity) {
-        vector3f32 overlap_start, overlap_end;
+
+    sweep_result_t sweep_collide(aabb const& a, aabb const& b, vector3f32 const& velocity, int index) {
+        vector3f32 overlap_start { -1024, -1024, -1024 }, overlap_end { 1024, 1024, 1024 };
         vector3f32 const one_by_velocity { f32(1) / velocity.x, f32(1) / velocity.y, f32(1) / velocity.z };
 
         for(size_t d = 0; d < 3; ++d) {
-            if(a.max[d] < b.min[d] && velocity[d] < f32(0)) {
-                overlap_start[d] = (a.max[d] - b.min[d]) * one_by_velocity[d];
+            // is [b] outside [a] and moving parallel or away?
+            if(b.min[d] >= a.max[d] || a.min[d] >= b.max[d]) { 
+                if(velocity[d] == f32(0))
+                    return sweep::never {}; // can't collide; b is moving in parallel to a
+                else if(b.min[d] > a.max[d] && velocity[d] > f32(0))
+                    return sweep::never {}; // can't collide; b is moving away in a positive direction
+                else if(a.min[d] > b.max[d] && velocity[d] < f32(0))
+                    return sweep::never {}; // can't collide; b is moving away in a negative direction
             }
-            else if(b.max[d] < a.min[d] && velocity[d] > f32(0)) {
-                overlap_start[d] = (a.min[d] - b.max[d]) * one_by_velocity[d];
+
+            // is [b] overlapping with [a]?
+            if(b.min[d] < a.max[d] && a.min[d] < b.max[d]) {
+                // this dimension is already overlapping
+                overlap_start[d] = f32(-1);
+                if(velocity[d] == f32(0)) {
+                    // this dimension overlaps until infinity (on this trajectory)
+                    overlap_end[d] = f32(INT_MAX, raw_tag);
+                }
+                else if(velocity[d] > f32(0)) {
+                    // moving to the positive
+                    overlap_end[d] = (a.max[d] - b.min[d]) * one_by_velocity[d];
+                }
+                else {
+                    // moving to the negative
+                    overlap_end[d] = (b.max[d] - a.min[d]) * (-one_by_velocity[d]);
+                }
             }
-            if(b.max[d] > a.min[d] && velocity[d] < f32(0)) {
-                overlap_end[d] = (a.min[d] - b.max[d]) * one_by_velocity[d];
-            }
-            else if(a.max[d] > b.min[d] && velocity[d] > f32(0)) {
+            // is [b] approaching [a] from the negative side?
+            else if(velocity[d] > f32(0)) {
+                if(a.min[d] == b.max[d]) {
+                    overlap_start[d] = f32(1, raw_tag); // "infinitesimal"
+                }
+                else {
+                    overlap_start[d] = (a.min[d] - b.max[d]) * one_by_velocity[d];
+                }
                 overlap_end[d] = (a.max[d] - b.min[d]) * one_by_velocity[d];
+            }
+            // is [b] approaching [a] from the positive side?
+            else { // if(velocity[d] < f32(0)) 
+                if(b.min[d] == a.max[d]) {
+                    overlap_start[d] = f32(1, raw_tag);
+                }
+                else {
+                    overlap_start[d] = (b.min[d] - a.max[d]) * (-one_by_velocity[d]);
+                }
+                overlap_end[d] = (b.max[d] - a.min[d]) * (-one_by_velocity[d]);
             }
         }
 
         f32 start = std::max({overlap_start.x, overlap_start.y, overlap_start.z});
+
+        //if(start == f32(0)) {
+        //    // touching precisely but not overlapping
+        //    return sweep::never {};
+        //}
+
+        if(start == f32(-1)) {
+            return sweep::already { index };
+        }
+
         f32 end = std::min({overlap_end.x, overlap_end.y, overlap_end.z});
 
-        if(start > end) {
-            return f32(1);
+        if(start > end || start >= f32(1)) {
+            return sweep::never {};
         }
         else {
-            return start;
+            // choose the last dimension to overlap
+            dimension dim;
+            if(start == overlap_start.x)
+                dim = dimension::x;
+            else if(start == overlap_start.y)
+                dim = dimension::y;
+            else
+                dim = dimension::z;
+            return sweep::from { start, index, dim };
         }
     }
 
     std::vector<aabb> last_bounds;
+    aabb last_ship_bounds, last_next_ship_bounds;
+    vector3f32 vel_prev0 { 0, 0, 0 }, vel_prev1 { 0, 0, 0 };
+
 
     collide_result_t collide(vector3f32 const& position, vector3f32 const& velocity, grid_t const& grid) {
+        // for debugging
+        vel_prev0 = vel_prev1;
+        vel_prev1 = velocity;
+
         // let's just assume we never move more than two tiles in a single frame
         // because that simplifies things a lot
         using geometry::draw::ship_size;
@@ -182,41 +264,33 @@ namespace roads {
         }
 
         last_bounds.assign(bounds.begin(), bounds.end());
+        last_ship_bounds = ship_bounds;
+        last_next_ship_bounds.min = ship_bounds.min + velocity;
+        last_next_ship_bounds.max = ship_bounds.max + velocity;
 
         // for each of those, we find a collision (if there is any)
-        arrayvec<f32, 32> collisions;
+        arrayvec<sweep_result_t, 32> sweep_results;
+        size_t index = 0;
         for(aabb const& a : bounds) {
-            collisions.push_back(sweep_collide(a, ship_bounds, velocity));
+            sweep_results.push_back(sweep_collide(a, ship_bounds, velocity, index++));
         }
 
-        int ccount = 0;
-        for(f32 time : collisions) {
-            if(time != f32(1))
-                ++ccount;
-        }
-
-        iprintf("\x1b[10;2H"
-                "tiles: %d      \n"
-                "bounds: %d     \n"
-                "colls: %d      \n",
-                tiles.size(),
-                bounds.size(),
-                ccount
-                );
-
-        // then we find the earliest collision
-        f32 earliest = 1;
-        for(f32 time : collisions) {
-            time = std::min(time, earliest);
-        }
-
-        // this means all collision checks reported 1 ie. no collision
-        if(earliest == f32(1)) {
+        if(sweep_results.size() == 0) {
             return collision::none {};
         }
-        
-        // otherwise we correct the earliest collision, which automatically
-        // disqualifies all the other collisions.
-        return collision::correction { velocity * earliest };
+
+        auto when = *std::min_element(sweep_results.begin(), sweep_results.end(), compare_sweep_result());
+        return visit<collide_result_t>(when,
+              [&bounds, &tiles, &ship_bounds](sweep::already a) -> collide_result_t {
+                  return collision::already {
+                      bounds[a.index],
+                      {ship_bounds.min - vel_prev0, ship_bounds.max - vel_prev0},
+                      tiles[a.index],
+                      vel_prev0
+                      };
+              },
+              [](sweep::never) { return collision::none {}; },
+              [&velocity](sweep::from f) { return collision::correction { f.time, f.dim }; }
+              );
     }
 }

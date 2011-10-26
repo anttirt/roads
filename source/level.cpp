@@ -22,6 +22,15 @@ namespace roads {
         return display_row();
     }
 
+    void level::reset() {
+        for(display_row& r : draw_queue) {
+            draw_pool.push_back(std::move(r));
+        }
+        draw_queue.clear();
+        visible_start = grid.begin();
+        visible_end = grid.begin();
+    }
+
     display_row level::generate_row_display_list(grid_t::iterator rowp) {
         using geometry::draw::block_size;
 

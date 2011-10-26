@@ -31,6 +31,9 @@ namespace roads {
         return val < min ? min : val > max ? max : val;
     }
 
+    enum class dimension {
+        x, y, z
+    };
 }
 
 #endif // ROADS_UTILITY_H

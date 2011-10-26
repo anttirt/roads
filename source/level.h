@@ -46,6 +46,7 @@ namespace roads {
     struct level {
         void draw() const;
         void update(f32 position);
+        void reset();
 
         enum {
             draw_distance = 25

@@ -56,7 +56,7 @@ namespace roads {
         f16 const back = scale.z * -block;
 
         cell const c = drc.c;
-        vector3f16 const offset { drc.position.x, c.altitude * geometry::draw::block_size * f16(0.5), 0 };
+        vector3f16 const offset { drc.position.x, c.altitude * geometry::draw::altitude_step, 0 };
         vector3f16 const back_offset = offset + vector3f16{0, 0, back};
         rgb const ambient = make_rgb(0, 0, 0);
         rgb const tilec = scale_rgb(tile_color(c), f16(0.5));

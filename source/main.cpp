@@ -7,6 +7,7 @@
 #include "vector.h"
 #include "display_list.h"
 #include "disp_writer.h"
+#include "collide.h"
 
 #include <nds.h>
 #include <stdio.h>
@@ -25,6 +26,7 @@ int main(void) {
     create_tests<vector3f16>(suite);
     //create_tests<display_list>(suite);
     create_tests<disp_writer>(suite);
+    create_tests<collide_result_t>(suite);
 
     suite.run_tests();
 
@@ -46,8 +48,15 @@ int main(void) {
 #include "geometry.h"
 #include "disp_writer.h"
 
+namespace roads {
+    constexpr f32 move_unit = 0.0005;
+}
+
 extern const unsigned char level_data_test0[15182];
+extern const unsigned char level_data_test2[6278];
 static const char headerText[] = "DSRoads Level file v0.003\n";
+
+#define LEVEL_NAME level_data_test2
 
 roads::grid_t make_level_data() {
     using namespace roads;
@@ -56,79 +65,143 @@ roads::grid_t make_level_data() {
     constexpr size_t oxygen_leak_offset = gravity_offset + 2;
     constexpr size_t palette_offset = oxygen_leak_offset + 2;
     constexpr size_t grid_offset = palette_offset + (16 * sizeof(rgb));
-    constexpr size_t cell_count = (countof(level_data_test0) - grid_offset) / 2;
+    constexpr size_t cell_count = (countof(LEVEL_NAME) - grid_offset) / 2;
     constexpr size_t row_count = cell_count / 7;
 
-    memcpy(cell::palette, level_data_test0 + palette_offset, sizeof(rgb) * 16);
+    memcpy(cell::palette, LEVEL_NAME + palette_offset, sizeof(rgb) * 16);
     grid_t grid(row_count);
-    memcpy(&grid[0], level_data_test0 + grid_offset, countof(level_data_test0) - grid_offset);
+    memcpy(&grid[0], LEVEL_NAME + grid_offset, countof(LEVEL_NAME) - grid_offset);
 
     return std::move(grid);
 }
 
-int corr, fell, none;
+int already, corr, fell, none;
 
-void check_collisions(roads::vector3f32 const& ship_position, roads::vector3f32 const& velocity, roads::grid_t const& grid) {
+enum class collision_result {
+    error,
+    death,
+    fell_off,
+    none
+};
+
+volatile bool loop_forever = true;
+
+collision_result check_collisions(roads::vector3f32& ship_position, roads::vector3f32& velocity, roads::vector3f32& acceleration, bool& can_jump, roads::grid_t const& grid) {
     using namespace roads;
 
     auto collide_result = collide(ship_position, velocity, grid);
-    visit<void>(collide_result,
-        [](collision::correction cor) {
-            iprintf("\x1b[3;2H"
+    return visit<collision_result>(collide_result,
+        [](collision::already const& a) -> collision_result {
+            vector3f32 vel = a.prev_velocity;
+            iprintf("\x1b[0;0H"
+                    "box[%d,%d,%d,%d,%d,%d],ship[%d,%d,%d,%d,%d,%d],vel[%d,%d,%d]",
+                    raw(a.box.min.x), raw(a.box.min.y), raw(a.box.min.z), 
+                    raw(a.box.max.x), raw(a.box.max.y), raw(a.box.max.z), 
+                    raw(a.ship.min.x), raw(a.ship.min.y), raw(a.ship.min.z), 
+                    raw(a.ship.max.x), raw(a.ship.max.y), raw(a.ship.max.z), 
+                    raw(vel.x), raw(vel.y), raw(vel.z));
+            return collision_result::error;
+        },
+        [&](collision::correction cor) -> collision_result {
+            iprintf("\x1b[4;2H"
                     "corr: %d",
                     corr++
                     );
+            // adjust velocity depending on what happened
+            vector3f32 offset0 = velocity * cor.time;
+            switch(cor.dim) {
+            case dimension::x:
+                velocity.x = 0;
+                break;
+
+            case dimension::y:
+                velocity.y = -velocity.y * f32(0.5);
+                can_jump = true;
+                if(velocity.y < f32(0.001) && velocity.y > f32(-0.001))
+                    velocity.y = 0;
+                break;
+                
+            case dimension::z:
+                //if(velocity.z > f32(0.001))
+                    return collision_result::death;
+                //else {
+                //    velocity.z = 0;
+                //}
+            }
+            vector3f32 offset1 = velocity * (f32(1) - cor.time);
+            for(int d = 0; d < 2; ++d) {
+                if(offset0[d] > f32(0)) {
+                    offset0[d] -= f32(1, raw_tag);
+                }
+                else if(offset0[d] < f32(0)) {
+                    offset0[d] += f32(1, raw_tag);
+                }
+            }
+            ship_position += (offset0 + offset1);
+            //ship_position += velocity;
+            velocity += acceleration;
+            velocity.z = clamp(velocity.z, move_unit * -20, move_unit * 20);
+            return collision_result::none;
         },
-        [](collision::fell_off) {
-            iprintf("\x1b[4;2H"
+        [&](collision::fell_off) -> collision_result {
+            iprintf("\x1b[5;2H"
                     "fell: %d",
                     fell++
                     );
+            ship_position += velocity;
+            return collision_result::fell_off;
         },
-        [](collision::none) {
-            iprintf("\x1b[5;2H"
-                    "none: %d",
-                    none++
-                    );
+        [&](collision::none) -> collision_result {
+            ship_position += velocity;
+            velocity += acceleration;
+            return collision_result::none;
         });
+}
+
+void draw_box(roads::aabb const& box) {
+    using namespace roads;
+    glPushMatrix();
+    vector3f32 pos = box.min;
+    vector3f16 max = (box.max - box.min).convert<f16>();
+    //int16_t x = raw(max.x), y0 = raw(geometry::draw::block_size * f16(0.5)), y = raw(max.y) + y0, z = raw(max.z);
+    int16_t x = raw(max.x), y0 = 0, y = raw(max.y) + y0, z = raw(max.z);
+    glTranslatef32(raw(pos.x), raw(pos.y), raw(pos.z));
+    glBegin(GL_TRIANGLES);
+
+    glVertex3v16(0, y0, 0); glVertex3v16(x, y0, 0); glVertex3v16(x, y0, 0);
+    glVertex3v16(0, y0, 0); glVertex3v16(0, y, 0); glVertex3v16(0, y, 0);
+    glVertex3v16(0, y0, 0); glVertex3v16(0, y0, z); glVertex3v16(0, y0, z);
+                                                                        
+    glVertex3v16(x, y, z); glVertex3v16(0, y, z); glVertex3v16(0, y, z);
+    glVertex3v16(x, y, z); glVertex3v16(x, y0, z); glVertex3v16(x, y0, z);
+    glVertex3v16(x, y, z); glVertex3v16(x, y, 0); glVertex3v16(x, y, 0);
+
+    glVertex3v16(x, y0, 0); glVertex3v16(x, y0, z); glVertex3v16(x, y0, z);
+    glVertex3v16(x, y0, 0); glVertex3v16(x, y, 0); glVertex3v16(x, y, 0);
+                                                                        
+    glVertex3v16(0, y, 0); glVertex3v16(x, y, 0); glVertex3v16(x, y, 0);
+    glVertex3v16(0, y, 0); glVertex3v16(0, y, z); glVertex3v16(0, y, z);
+                                                                        
+    glVertex3v16(0, y0, z); glVertex3v16(0, y, z); glVertex3v16(0, y, z);
+    glVertex3v16(0, y0, z); glVertex3v16(x, y0, z); glVertex3v16(x, y0, z);
+                                                                         
+    glEnd();
+    glPopMatrix(1);
 }
 
 void draw_last_bounds() {
     using namespace roads;
 
-    int count = 0;
     glMaterialf(GL_DIFFUSE, make_rgb(31, 31, 31));
     glMaterialf(GL_AMBIENT, make_rgb(31, 31, 31));
     glColor(make_rgb(31, 31, 31));
     for(aabb const& box : last_bounds) {
-        ++count;
-        glPushMatrix();
-        vector3f32 pos = box.min;
-        vector3f16 max = (box.max - box.min).convert<f16>();
-        int16_t x = raw(max.x), y0 = raw(geometry::draw::block_size * f16(0.5)), y = raw(max.y) + y0, z = raw(max.z);
-        glTranslatef32(raw(pos.x), raw(pos.y), raw(pos.z));
-        glBegin(GL_TRIANGLES);
-
-        glVertex3v16(0, y0, 0); glVertex3v16(x, y0, 0); glVertex3v16(x, y0, 0);
-        glVertex3v16(0, y0, 0); glVertex3v16(0, y, 0); glVertex3v16(0, y, 0);
-        glVertex3v16(0, y0, 0); glVertex3v16(0, y0, z); glVertex3v16(0, y0, z);
-                                                                            
-        glVertex3v16(x, y, z); glVertex3v16(0, y, z); glVertex3v16(0, y, z);
-        glVertex3v16(x, y, z); glVertex3v16(x, y0, z); glVertex3v16(x, y0, z);
-        glVertex3v16(x, y, z); glVertex3v16(x, y, 0); glVertex3v16(x, y, 0);
-
-        glVertex3v16(x, y0, 0); glVertex3v16(x, y0, z); glVertex3v16(x, y0, z);
-        glVertex3v16(x, y0, 0); glVertex3v16(x, y, 0); glVertex3v16(x, y, 0);
-                                                                            
-        glVertex3v16(0, y, 0); glVertex3v16(x, y, 0); glVertex3v16(x, y, 0);
-        glVertex3v16(0, y, 0); glVertex3v16(0, y, z); glVertex3v16(0, y, z);
-                                                                            
-        glVertex3v16(0, y0, z); glVertex3v16(0, y, z); glVertex3v16(0, y, z);
-        glVertex3v16(0, y0, z); glVertex3v16(x, y0, z); glVertex3v16(x, y0, z);
-                                                                             
-        glEnd();
-        glPopMatrix(1);
+        draw_box(box);
     }
+    glColor(make_rgb(0, 31, 31));
+    draw_box(last_ship_bounds);
+    glColor(make_rgb(31, 31, 0));
+    draw_box(last_next_ship_bounds);
     aabb const& smp = last_bounds.back();
     printf("\x1b[14;0H"
             "%.3f,%.3f,%.3f\n"
@@ -136,6 +209,15 @@ void draw_last_bounds() {
             smp.min.x.to_float(),smp.min.y.to_float(),smp.min.z.to_float(),
             smp.max.x.to_float(),smp.max.y.to_float(),smp.max.z.to_float()
             );
+}
+
+void game_over() {
+    iprintf("\x1b[0;0H"
+            "====================\n"
+            "====================\n"
+            "==== GAME  OVER ====\n"
+            "====================\n"
+            "====================\n");
 }
 
 int main() {
@@ -161,11 +243,13 @@ int main() {
 	glViewport(0,0,255,191);
 	
 	//any floating point gl call is being converted to fixed prior to being implemented
+
+    roads::level lvl { make_level_data() };
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	gluPerspective(70, 256.0 / 192.0, 0.1, 40);
 	
-	gluLookAt(	0.0, 0.3, 0.02,		//camera position 
+	gluLookAt(	0.0, 0.16, 0.19,		//camera position 
 				0.0, 0.0, 0.0,		//look at
 				0.0, 1.0, 0.0);		//up
 	
@@ -176,12 +260,11 @@ int main() {
             floattov10(ln.x), floattov10(ln.y), floattov10(ln.z));
 	glPolyFmt(POLY_ALPHA(31) | POLY_CULL_BACK | POLY_FORMAT_LIGHT0);
 
-    roads::level lvl { make_level_data() };
-
+    while(1) {
+        lvl.reset();
     //roads::display_list list = generate_list();
     using roads::f32;
 
-    f32 const move_unit = 0.005;
     roads::vector3f32 move { };
 
     roads::display_list ship;
@@ -191,42 +274,99 @@ int main() {
         using namespace roads;
         using geometry::draw::ship_size;
         move.x = ship_size.x * f32(-0.5);
-        move.y = geometry::draw::tile_height;
+        move.y = geometry::draw::tile_height * 5;
         move.z = ship_size.z * f32(0.5) - f32(geometry::draw::block_size) * f32(0.5);
         disp_writer writer(ship, move, geometry::draw::scale);
 
         f16 x = f16(raw(ship_size.x), raw_tag);
         f16 y = f16(raw(ship_size.y), raw_tag);
-        f16 z = -f16(raw(ship_size.z), raw_tag);
+        f16 z = f16(raw(ship_size.z), raw_tag);
 
         writer
-            << diffuse_ambient { make_rgb(10, 10, 10), make_rgb(0, 0, 0), false }
-            << quad { { 0, 0, 0 }, { x, 0, 0 }, { x, y, 0 }, { 0, y, 0 } }
-            << quad { { 0, 0, 0 }, { 0, y, 0 }, { 0, y, z }, { 0, 0, z } }
-            << quad { { x, 0, 0 }, { x, 0, z }, { x, y, z }, { x, z, 0 } }
-            << quad { { 0, y, 0 }, { x, y, 0 }, { x, y, z }, { 0, y, z } }
+            << diffuse_ambient { make_rgb(31, 0, 0), make_rgb(10, 10, 10), true }
+            << quad { { 0, 0, z }, { x, 0, z }, { x, y, z }, { 0, y, z } }
+            << quad { { 0, 0, z }, { 0, y, z }, { 0, y, 0 }, { 0, 0, 0 } }
+            << quad { { 0, y, z }, { x, y, z }, { x, y, 0 }, { 0, y, 0 } }
+            << quad { { x, 0, z }, { x, 0, 0 }, { x, y, 0 }, { x, y, z } }
             << end;
         ship.resize(writer.write_count());
     }
-	
-	while(1)
+
+    using roads::move_unit;
+    roads::vector3f32 acceleration { 0, -move_unit, 0 }; // gravity
+    roads::vector3f32 velocity { 0, 0, 0 };
+
+    bool can_jump = true;
+    bool update_camera = true;
+    bool game_on = true;
+    iprintf("\x1b[0;0H"
+            "                                \n"
+            "                                \n"
+            "                                \n"
+            "                                \n"
+            "                                \n"
+            "                                \n"
+            "                                \n"
+            "                                \n"
+            "                                \n"
+            "                                \n"
+            "                                \n"
+            "                                \n"
+            "                                \n"
+            "                                \n"
+            "                                \n"
+            "                                \n"
+            "                                \n"
+            "                                \n"
+            "                                \n"
+            "                                \n"
+            "                                \n");
+	while(game_on)
 	{
 		glPushMatrix();
 				
-        glTranslatef32(0, 0, raw(-move.z));
+        if(update_camera)
+            glTranslatef32(0, 0, raw(-move.z));
 		
 		scanKeys();
 		u16 keys = keysHeld();
-        roads::vector3f32 velocity { 0, 0, 0 };
-		if(keys & KEY_UP)    { velocity.z -= move_unit; }
-		if(keys & KEY_DOWN)  { velocity.z += move_unit; }
-		if(keys & KEY_LEFT)  { velocity.x -= move_unit; }
-		if(keys & KEY_RIGHT) { velocity.x += move_unit; }
+		if(keys & KEY_UP)    { acceleration.z = -move_unit; }
+        else if(keys & KEY_DOWN)  { acceleration.z = move_unit; }
+        else { acceleration.z = f32(0); }
+		if(keys & KEY_LEFT)  { velocity.x = -move_unit * 4 + (velocity.z * f32(0.2)) ; }
+        else if(keys & KEY_RIGHT) { velocity.x = move_unit * 4 + (velocity.z * f32(-0.2)); }
+        else { velocity.x = 0; }
+        if(keys & KEY_A) {
+            if(can_jump) {
+                if(velocity.y < (move_unit * 2) && velocity.y > (move_unit * -2)) {
+                    velocity.y = move_unit * 18; // jump
+                    can_jump = false;
+                }
+            }
+        }
 		
+        bool break_loop = false;
         using roads::raw_tag;
-        check_collisions(move, velocity, lvl.grid);
+        switch(check_collisions(move, velocity, acceleration, can_jump, lvl.grid)) {
+        case collision_result::fell_off:
+            update_camera = false;
+            break;
+        case collision_result::death:
+            game_over();
+            game_on = false;
+            break;
+        case collision_result::error:
+            game_on = false;
+            break;
+        default:
+            break;
+        }
 
-        move += velocity;
+
+        if(move.y < f32(roads::geometry::draw::block_size) * -4) {
+            game_over();
+            game_on = false;
+        }
 
         // updating the level's draw lists should be delayed a little so that rows
         // don't disappear while they're still on screen
@@ -236,7 +376,7 @@ int main() {
         ship.data()[10] = raw(move.x);
         ship.data()[11] = raw(move.y);
         ship.data()[12] = raw(move.z);
-        ship.draw();
+        //ship.draw();
 
         draw_last_bounds();
 
@@ -254,6 +394,19 @@ int main() {
 			
 		glFlush(0);
 	}
+
+    while(1) {
+		scanKeys();
+		u16 keys = keysHeld();
+        if(keys & KEY_A) {
+            break;
+        }
+        else {
+            swiWaitForVBlank();
+        }
+    }
+
+    }
 
 	return 0;
 }

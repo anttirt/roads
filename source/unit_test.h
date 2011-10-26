@@ -69,6 +69,17 @@ namespace roads
             x_str.c_str(),                       \
             y_str.c_str());                      \
     } while(0)
+#define UASSERT_NOT_EQUAL(x, y) \
+    do {                                         \
+        std::string x_str =                      \
+            boost::lexical_cast<std::string>(x); \
+        std::string y_str =                      \
+            boost::lexical_cast<std::string>(y); \
+        UASSERT((x) != (y),                      \
+            #x " == " #y "[%s]",    \
+            x_str.c_str(),                       \
+            y_str.c_str());                      \
+    } while(0)
 #define UNIT_TEST(test_name, ...)                    \
     std::string const test_name##_name = #test_name; \
     struct test_name : unit_test_base {              \

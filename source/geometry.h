@@ -22,8 +22,9 @@ namespace roads {
             constexpr f16 tile_height = block_size * (1. / 6.);
             constexpr f16 tall_height = block_size - tile_height;
             constexpr f16 short_height = block_size - 3*tile_height;
+            constexpr f16 altitude_step = block_size * f16(0.3);
             constexpr vector3f32 scale { 1, 1, 1 };
-            constexpr vector3f32 ship_size { block_size * (1./2.), block_size * (1./4.), block_size * (1./2.) };
+            constexpr vector3f32 ship_size { block_size * (1./3.), block_size * (1./6.), block_size * (1./3.) };
         }
 
         namespace tunnel {

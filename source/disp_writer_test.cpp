@@ -29,12 +29,13 @@ constexpr uint32_t make_diffuse_ambient(uint8_t dr, uint8_t dg, uint8_t db, uint
 
 namespace {
 uint32_t const disp_lst[] = {
-    FIFO_COMMAND_PACK(FIFO_MATRIX_PUSH, FIFO_MATRIX_IDENTITY, FIFO_MATRIX_LOAD4x3, FIFO_NOP),
+    FIFO_COMMAND_PACK(FIFO_MATRIX_PUSH, FIFO_MATRIX_MULT4x3, FIFO_NOP, FIFO_NOP),
     1 << 12, 0,       0,              //
     0,       1 << 12, 0,              // 4x3 transformation matrix:
     0,       0,       1 << 12,        // scale (1:1) and translate (0,0,-5)
     0,       0,       (1 << 12) * -5, //
     0, // nop
+    0,
     FIFO_COMMAND_PACK(FIFO_DIFFUSE_AMBIENT, FIFO_SPECULAR_EMISSION, FIFO_NORMAL, FIFO_BEGIN),
     make_diffuse_ambient(24, 24, 24, 3, 3, 3, true),
     make_diffuse_ambient(0, 0, 0, 0, 0, 0, false),
@@ -60,7 +61,7 @@ namespace roads {
         {
             uint32_t buf[1024];
             disp_writer writer(buf, buf + 1024, { 0, 0, -5 }, { 1, 1, 1 });
-            UASSERT_EQUAL(writer.write_count(), 14);
+            UASSERT_EQUAL(writer.write_count(), 15);
             UASSERT_EQUAL(writer.get_pipe_index(), 0);
             UASSERT(bool(writer), "Writer not OK after writing prelude");
             writer
@@ -69,7 +70,7 @@ namespace roads {
                 << normal { { 0, 0, -1 } };
             UASSERT_EQUAL(writer.get_pipe_index(), 3);
             UASSERT(bool(writer), "Writer not OK after pushing three commands");
-            UASSERT_EQUAL(writer.write_count(), 14);
+            UASSERT_EQUAL(writer.write_count(), 15);
             writer
                 << quad { { -1, 1, 0 }, { -1, -1, 0 }, { 1, -1, 0 }, { 1, 1, 0 } };
             UASSERT(bool(writer), "Writer not OK after writing quad");
